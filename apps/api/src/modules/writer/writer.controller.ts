@@ -267,6 +267,7 @@ export async function getWriterChaptersResponse(
     const access = await resolveWriterContentAccess(currentUser, contentId)
     return await getWriterChapters(access.creatorUserId, contentId, {
       search: query.search,
+      sort: query.sort,
       page: query.page ?? 1,
       limit: query.limit ?? 10,
     }, access.canManageModeratedContent)

@@ -42,9 +42,12 @@ export interface WriterChapterDetail extends Omit<CreatedWriterChapter, 'created
 
 export interface GetWriterChaptersInput {
   search?: string
+  sort?: WriterChapterSort
   page: number
   limit: number
 }
+
+export type WriterChapterSort = 'chapter_desc' | 'chapter_asc' | 'created_desc' | 'created_asc'
 
 export interface WriterChapter {
   id: string

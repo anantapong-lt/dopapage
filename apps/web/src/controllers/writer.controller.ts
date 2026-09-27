@@ -208,12 +208,14 @@ export function updateWriterContent(
 export function getWriterChapters(
   contentId: string,
   search: string,
+  sort: 'chapter_desc' | 'chapter_asc' | 'created_desc' | 'created_asc',
   page: number,
   limit: number,
   accessToken: string,
 ): Promise<WriterChaptersResponse> {
   const searchParams = new URLSearchParams({
     search,
+    sort,
     page: String(page),
     limit: String(limit),
   })

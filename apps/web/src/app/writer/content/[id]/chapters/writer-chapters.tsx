@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ArrowLeftIcon, PlusIcon, SearchIcon } from 'lucide-react'
+import { ArrowLeftIcon, ArrowUpDownIcon, Clock3Icon, EyeIcon, PlusIcon, SearchIcon } from 'lucide-react'
 import { GiTwoCoins } from 'react-icons/gi'
 import { toast } from 'sonner'
 import { useAuth } from '@/components/auth/auth-provider'
@@ -12,9 +12,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { DateTimePicker } from '@/components/ui/date-time-picker'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   bulkUpdateWriterChapterPrice,
   bulkUpdateWriterChapterStatus,
@@ -24,6 +26,8 @@ import type { ChapterStatus, WriterChaptersResponse } from '@/interface/writer-c
 import { formatChapterNumber } from '@/utils/chapter-number.util'
 
 const PAGE_LIMIT = 10
+type ChapterSort = 'chapter_desc' | 'chapter_asc' | 'created_desc' | 'created_asc'
+type BulkAction = 'price' | 'status' | 'schedule'
 
 const statusOptions: { value: ChapterStatus; label: string }[] = [
   { value: 'draft', label: 'ฉบับร่าง' },
@@ -80,6 +84,10 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
   const searchParams = useSearchParams()
   const { accessToken } = useAuth()
   const search = searchParams.get('search')?.trim() ?? ''
+  const sortParam = searchParams.get('sort')
+  const sort: ChapterSort = sortParam === 'chapter_asc' || sortParam === 'created_desc' || sortParam === 'created_asc'
+    ? sortParam
+    : 'chapter_desc'
   const requestedPage = Number(searchParams.get('page') ?? 1)
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
   const [searchInput, setSearchInput] = useState(search)
@@ -90,13 +98,15 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
   const [bulkPrice, setBulkPrice] = useState('')
   const [bulkStatus, setBulkStatus] = useState<ChapterStatus | ''>('')
   const [scheduledAt, setScheduledAt] = useState('')
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null)
   const [isUpdating, setIsUpdating] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
   const updateUrl = useCallback(
-    (nextSearch: string, nextPage: number, replace = false) => {
+    (nextSearch: string, nextPage: number, replace = false, nextSort: ChapterSort = sort) => {
       const params = new URLSearchParams()
       if (nextSearch) params.set('search', nextSearch)
+      if (nextSort !== 'chapter_desc') params.set('sort', nextSort)
       if (nextPage > 1) params.set('page', String(nextPage))
       const query = params.toString()
       const href = `/writer/content/${contentId}/chapters${query ? `?${query}` : ''}`
@@ -104,7 +114,7 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
       if (replace) router.replace(href)
       else router.push(href)
     },
-    [contentId, router],
+    [contentId, router, sort],
   )
 
   useEffect(() => {
@@ -129,7 +139,7 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
     setIsLoading(true)
     setLoadError(null)
 
-    void getWriterChapters(contentId, search, page, PAGE_LIMIT, accessToken)
+    void getWriterChapters(contentId, search, sort, page, PAGE_LIMIT, accessToken)
       .then((nextResult) => {
         if (!cancelled) {
           setResult(nextResult)
@@ -148,7 +158,7 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
     return () => {
       cancelled = true
     }
-  }, [accessToken, contentId, page, reloadKey, search])
+  }, [accessToken, contentId, page, reloadKey, search, sort])
 
   const chapters = result?.chapters ?? []
   const pagination = result?.pagination
@@ -173,6 +183,17 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
       else next.add(chapterId)
       return next
     })
+  }
+
+  const openBulkAction = (action: BulkAction) => {
+    if (selectedIds.size === 0) {
+      toast.error('กรุณาเลือกตอนอย่างน้อย 1 ตอน')
+      return
+    }
+    setBulkPrice('')
+    setBulkStatus(action === 'schedule' ? 'scheduled' : '')
+    setScheduledAt('')
+    setBulkAction(action)
   }
 
   const handleBulkSave = async () => {
@@ -216,112 +237,123 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
       const message = error instanceof Error ? error.message : 'ไม่สามารถบันทึกข้อมูลได้'
       toast.error(priceSaved ? `บันทึกราคาแล้ว แต่บันทึกสถานะไม่สำเร็จ: ${message}` : message)
     } finally {
-      if (saved) setReloadKey((current) => current + 1)
+      if (saved) {
+        setReloadKey((current) => current + 1)
+        setBulkAction(null)
+      }
       setIsUpdating(false)
     }
   }
 
   return (
     <section className="mt-6 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Button asChild variant="outline" className="h-11 w-fit self-start rounded-xl">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap items-center gap-3">
+        <Button asChild variant="outline" className="h-11 w-fit rounded-xl">
           <Link href="/writer/contents">
             <ArrowLeftIcon />
             ย้อนกลับ
           </Link>
         </Button>
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+        <Select value={sort} onValueChange={(value) => updateUrl(search, 1, false, value as ChapterSort)}>
+          <SelectTrigger aria-label="เรียงลำดับตอน" className="h-11 w-48 rounded-xl">
+            <ArrowUpDownIcon className="size-4" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="chapter_desc">เลขตอนมากไปน้อย</SelectItem>
+            <SelectItem value="chapter_asc">เลขตอนน้อยไปมาก</SelectItem>
+            <SelectItem value="created_desc">สร้างล่าสุด</SelectItem>
+            <SelectItem value="created_asc">สร้างเก่าสุด</SelectItem>
+          </SelectContent>
+        </Select>
+        <TooltipProvider>
+          <div className="flex flex-wrap items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button type="button" variant="outline" size="icon" disabled={isUpdating || selectedIds.size === 0} onClick={() => openBulkAction('price')} aria-label="เปลี่ยนราคาตอนที่เลือก">
+                    <GiTwoCoins className="size-4 text-primary" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>เปลี่ยนราคาตอนที่เลือก</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button type="button" variant="outline" size="icon" disabled={isUpdating || selectedIds.size === 0} onClick={() => openBulkAction('status')} aria-label="เปลี่ยนสถานะตอนที่เลือก">
+                    <EyeIcon className="size-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>เปลี่ยนสถานะตอนที่เลือก</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button type="button" variant="outline" size="icon" disabled={isUpdating || selectedIds.size === 0} onClick={() => openBulkAction('schedule')} aria-label="ตั้งเวลาเผยแพร่ตอนที่เลือก">
+                    <Clock3Icon className="size-4" />
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>ตั้งเวลาเผยแพร่ตอนที่เลือก</TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+        {selectedIds.size > 0 && <span className="text-sm text-muted-foreground">{`เลือกแล้ว ${selectedIds.size} ตอน`}</span>}
+        </div>
+        <div className="flex w-full flex-col gap-3 sm:flex-row lg:w-auto">
           <form onSubmit={handleSearch} className="relative w-full sm:w-80">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="ค้นหาเลขตอนหรือชื่อตอน"
-              aria-label="ค้นหาเลขตอนหรือชื่อตอน"
-              className="h-11 rounded-xl bg-white pl-9"
-            />
+              <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="ค้นหาเลขตอนหรือชื่อตอน"
+                aria-label="ค้นหาเลขตอนหรือชื่อตอน"
+                className="h-11 rounded-xl bg-white pl-9"
+              />
           </form>
-          <Button
-            asChild
-            className="h-11 rounded-xl px-5 font-bold"
-            style={{
-              backgroundColor: 'var(--primary)',
-              color: 'var(--primary-foreground)',
-            }}
-          >
-            <Link href={`/writer/content/${contentId}/chapters/create`}>
-              <PlusIcon />
-              สร้างตอน
-            </Link>
-          </Button>
+        <Button
+          asChild
+          className="h-11 rounded-xl px-5 font-bold"
+          style={{
+            backgroundColor: 'var(--primary)',
+            color: 'var(--primary-foreground)',
+          }}
+        >
+          <Link href={`/writer/content/${contentId}/chapters/create`}>
+            <PlusIcon />
+            สร้างตอน
+          </Link>
+        </Button>
         </div>
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="readji-surface @container min-w-0 flex flex-col gap-3 rounded-xl p-4">
-          <p className="text-sm font-semibold">เลือกแล้ว {selectedIds.size} ตอน</p>
-          <div className="grid min-w-0 gap-3 @[48rem]:grid-cols-2 @[48rem]:items-end">
-            <div className="min-w-0">
-              <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={bulkPrice}
-                disabled={isUpdating}
-                onChange={(event) => setBulkPrice(event.target.value)}
-                placeholder="ราคา (0 = ฟรี)"
-                aria-label="ราคาที่ต้องการอัปเดต"
-                className="h-10 rounded-xl"
-              />
-            </div>
+      <Dialog open={bulkAction === 'price'} onOpenChange={(open) => { if (!open) setBulkAction(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>เปลี่ยนราคาตอนที่เลือก</DialogTitle><DialogDescription>ตั้งราคาให้ {selectedIds.size} ตอนพร้อมกัน โดย 0 คืออ่านฟรี</DialogDescription></DialogHeader>
+          <Input type="number" min={0} step="0.01" value={bulkPrice} disabled={isUpdating} onChange={(event) => setBulkPrice(event.target.value)} placeholder="ราคา" aria-label="ราคาที่ต้องการอัปเดต" />
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkAction(null)} disabled={isUpdating}>ยกเลิก</Button><Button type="button" onClick={handleBulkSave} disabled={isUpdating || bulkPrice.trim() === '' || !Number.isFinite(Number(bulkPrice)) || Number(bulkPrice) < 0}>{isUpdating ? 'กำลังบันทึก...' : 'บันทึก'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <div
-              className={`grid min-w-0 items-center gap-2 ${bulkStatus === 'scheduled' ? '@[48rem]:grid-cols-2' : ''}`}
-            >
-              <Select
-                value={bulkStatus}
-                disabled={isUpdating}
-                onValueChange={(value) => setBulkStatus(value as ChapterStatus)}
-              >
-                <SelectTrigger className="h-10! w-full min-w-0 rounded-xl [&_[data-slot=select-value]]:truncate">
-                  <SelectValue placeholder="เลือกสถานะ" />
-                </SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {bulkStatus === 'scheduled' && (
-                <DateTimePicker
-                  value={scheduledAt}
-                  onChange={setScheduledAt}
-                  label="วันและเวลาเผยแพร่"
-                  disabled={isUpdating}
-                />
-              )}
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              disabled={
-                isUpdating ||
-                (bulkPrice.trim() === '' && !bulkStatus) ||
-                (bulkPrice.trim() !== '' && (!Number.isFinite(Number(bulkPrice)) || Number(bulkPrice) < 0)) ||
-                (bulkStatus === 'scheduled' && !scheduledAt)
-              }
-              onClick={handleBulkSave}
-              className="h-10 rounded-xl"
-            >
-              {isUpdating ? 'กำลังบันทึก...' : 'บันทึก'}
-            </Button>
-          </div>
-        </div>
-      )}
+      <Dialog open={bulkAction === 'status'} onOpenChange={(open) => { if (!open) setBulkAction(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>เปลี่ยนสถานะตอนที่เลือก</DialogTitle><DialogDescription>ปรับสถานะให้ {selectedIds.size} ตอนพร้อมกัน</DialogDescription></DialogHeader>
+          <Select value={bulkStatus} disabled={isUpdating} onValueChange={(value) => setBulkStatus(value as ChapterStatus)}><SelectTrigger className="w-full"><SelectValue placeholder="เลือกสถานะ" /></SelectTrigger><SelectContent>{statusOptions.filter((option) => option.value !== 'scheduled').map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent></Select>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkAction(null)} disabled={isUpdating}>ยกเลิก</Button><Button type="button" onClick={handleBulkSave} disabled={isUpdating || !bulkStatus}>{isUpdating ? 'กำลังบันทึก...' : 'บันทึก'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkAction === 'schedule'} onOpenChange={(open) => { if (!open) setBulkAction(null) }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>ตั้งเวลาเผยแพร่ตอนที่เลือก</DialogTitle><DialogDescription>ตั้งเผยแพร่ให้ {selectedIds.size} ตอนพร้อมกัน</DialogDescription></DialogHeader>
+          <DateTimePicker value={scheduledAt} onChange={setScheduledAt} label="วันและเวลาเผยแพร่" minDateTime={new Date()} disabled={isUpdating} />
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setBulkAction(null)} disabled={isUpdating}>ยกเลิก</Button><Button type="button" onClick={handleBulkSave} disabled={isUpdating || !scheduledAt}>{isUpdating ? 'กำลังบันทึก...' : 'บันทึก'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
         <Table className="min-w-[1120px]">

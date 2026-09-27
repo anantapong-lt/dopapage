@@ -134,6 +134,7 @@ export async function queryWriterChapters(
   input: GetWriterChaptersInput,
 ): Promise<WriterChaptersResult> {
   const search = input.search?.trim() ?? ''
+  const sort = input.sort ?? 'chapter_desc'
   const searchPattern = `%${search}%`
   const offset = (input.page - 1) * input.limit
   const [chapters, [count]] = await Promise.all([
@@ -151,7 +152,12 @@ export async function queryWriterChapters(
           OR chapters.title ILIKE ${searchPattern}
         )
       GROUP BY chapters.id, stories.slug
-      ORDER BY chapters.chapter_number DESC, chapters.id DESC
+      ORDER BY
+        CASE WHEN ${sort} = 'chapter_asc' THEN chapters.chapter_number END ASC,
+        CASE WHEN ${sort} = 'chapter_desc' THEN chapters.chapter_number END DESC,
+        CASE WHEN ${sort} = 'created_asc' THEN chapters.created_at END ASC,
+        CASE WHEN ${sort} = 'created_desc' THEN chapters.created_at END DESC,
+        chapters.id DESC
       LIMIT ${input.limit} OFFSET ${offset}
     `,
     db<WriterChapterCount[]>`

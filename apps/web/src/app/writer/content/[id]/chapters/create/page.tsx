@@ -196,7 +196,7 @@ export default function CreateChapterPage({ params }: CreateChapterPageProps) {
     void Promise.all([
       getWriterContent(id, accessToken),
       chapterId ? getWriterChapter(id, chapterId, accessToken) : Promise.resolve(null),
-      chapterId ? Promise.resolve(null) : getWriterChapters(id, '', 1, 1, accessToken),
+      chapterId ? Promise.resolve(null) : getWriterChapters(id, '', 'chapter_desc', 1, 1, accessToken),
     ])
       .then(([{ story }, chapterResponse, chaptersResponse]) => {
         if (!cancelled) {
