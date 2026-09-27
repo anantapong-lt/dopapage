@@ -13,6 +13,14 @@
 }
 
 @font-face {
+  font-family: "Layiji Mahaniyom";
+  src: url("/fonts/LayijiMahaniyomV1_61.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "TF NopScript";
   src: url("/fonts/TF%20NOPSCRIPT%20BOL.TTF") format("truetype");
   font-style: normal;
