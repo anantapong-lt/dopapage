@@ -74,11 +74,13 @@ async function requestBoostSmsOtp(phoneNumber: string): Promise<string> {
   if (!payload || typeof payload !== 'object' || !('ref' in payload) || typeof payload.ref !== 'string' || !payload.ref) {
     throw new PhoneOtpProviderError('unavailable')
   }
-  return payload.ref
+  const ref = payload.ref.trim()
+  if (!ref) throw new PhoneOtpProviderError('unavailable')
+  return ref
 }
 
 async function verifyBoostSmsOtp(ref: string, otp: string): Promise<boolean> {
-  const { ok, payload } = await boostSmsOtpRequest('/api/v1/otp/verify', { ref, code: otp })
+  const { ok, payload } = await boostSmsOtpRequest('/api/v1/otp/verify', { ref: ref.trim(), code: otp })
   return Boolean(ok && payload && typeof payload === 'object' && 'valid' in payload && payload.valid === true && 'verified' in payload && payload.verified === true)
 }
 

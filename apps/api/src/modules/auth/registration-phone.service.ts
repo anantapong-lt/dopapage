@@ -37,6 +37,8 @@ export async function requestRegistrationPhoneOtp(phone: string): Promise<{ veri
   if (!payload || typeof payload !== 'object' || !('ref' in payload) || typeof payload.ref !== 'string' || !payload.ref) {
     throw new PhoneOtpProviderError('unavailable')
   }
+  const providerToken = payload.ref.trim()
+  if (!providerToken) throw new PhoneOtpProviderError('unavailable')
 
   const verificationId = crypto.randomUUID()
   await db`
@@ -44,7 +46,7 @@ export async function requestRegistrationPhoneOtp(phone: string): Promise<{ veri
   `
   await db`
     INSERT INTO phone_verification_requests (id, user_id, phone_number, provider_token, expires_at)
-    VALUES (${verificationId}, NULL, ${phoneNumber}, ${payload.ref}, NOW() + (${REGISTRATION_PHONE_TTL_MINUTES} * INTERVAL '1 minute'))
+    VALUES (${verificationId}, NULL, ${phoneNumber}, ${providerToken}, NOW() + (${REGISTRATION_PHONE_TTL_MINUTES} * INTERVAL '1 minute'))
   `
   return { verificationId, expiresIn: REGISTRATION_PHONE_TTL_MINUTES * 60 }
 }
@@ -57,7 +59,7 @@ export async function verifyRegistrationPhoneOtp(verificationId: string, otp: st
     `
     if (!request || new Date(request.expires_at).getTime() <= Date.now()) return 'expired'
 
-    const { ok, status, payload } = await providerRequest('/api/v1/otp/verify', { ref: request.provider_token, code: otp })
+    const { ok, status, payload } = await providerRequest('/api/v1/otp/verify', { ref: request.provider_token.trim(), code: otp })
     if (!ok) {
       if (status === 400 || status === 404) return 'invalid_otp'
       if (status === 410) return 'expired'
