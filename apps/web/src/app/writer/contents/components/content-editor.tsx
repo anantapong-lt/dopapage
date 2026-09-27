@@ -167,7 +167,7 @@ export function ContentEditor({
       </section>
 
       <aside className="readji-surface rounded-2xl p-5 md:p-6">
-        <CoverImageUpload initialCoverUrl={story?.cover_url} showRemoveButton={!contentId} />
+        <CoverImageUpload initialCoverUrl={story?.cover_url} />
         {actions}
       </aside>
     </>

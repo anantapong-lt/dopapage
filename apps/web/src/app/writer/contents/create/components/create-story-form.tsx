@@ -58,12 +58,11 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
   const [isSaved, setIsSaved] = useState(false)
   const [isFormValid, setIsFormValid] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const isSlotChildren = typeof children === 'function'
   const actionBarClassName = isSlotChildren
-    ? 'mt-5 grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-end'
-    : 'grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-end lg:col-span-2'
+    ? 'mt-5 grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-center'
+    : 'grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-center lg:col-span-2'
 
   const updateFormState = useCallback(() => {
     const form = formRef.current
@@ -94,7 +93,6 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
   }, [updateFormState])
 
   const clearFieldError = useCallback((name: string) => {
-    setMessage(null)
     if (contentId) setIsSaved(false)
     scheduleFormStateUpdate()
     setErrors((currentErrors) => {
@@ -136,20 +134,17 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
       }
 
       setErrors(nextErrors)
-      setMessage('กรุณาตรวจสอบข้อมูลที่กรอก')
       const firstFieldName = Object.keys(nextErrors)[0]
       if (firstFieldName) scrollToFirstError(form, firstFieldName)
       return
     }
 
     if (!accessToken) {
-      setMessage('ไม่พบข้อมูลการเข้าสู่ระบบ กรุณาลองใหม่อีกครั้ง')
       return
     }
 
     setIsSubmitting(true)
     setErrors({})
-    setMessage(null)
 
     try {
       let savedContentId = contentId
@@ -167,22 +162,16 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
       router.push(
         contentId
           ? '/writer/contents?tab=novel'
-          : `/writer/content/${savedContentId}/overview`,
+          : `/writer/content/${savedContentId}/content`,
       )
     } catch (error) {
       if (error instanceof ApiError && error.field) {
         setErrors({ [error.field]: error.message })
-        setMessage('กรุณาตรวจสอบข้อมูลที่กรอก')
         toast.error(error.message)
         scrollToFirstError(form, error.field)
         return
       }
 
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : contentId ? 'ไม่สามารถแก้ไขเนื้อหาได้' : 'ไม่สามารถสร้างเนื้อหาได้',
-      )
     } finally {
       setIsSubmitting(false)
     }
@@ -190,14 +179,6 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
 
   const actionBar = (
     <div className={actionBarClassName}>
-      {message && (
-        <p
-          role="status"
-          className={`col-span-2 mr-auto text-sm sm:col-span-1 ${isSaved ? 'text-primary' : 'text-destructive'}`}
-        >
-          {message}
-        </p>
-      )}
       <Link
         href={cancelHref}
         className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-5 text-sm font-semibold transition-colors hover:bg-accent"

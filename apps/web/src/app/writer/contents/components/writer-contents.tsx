@@ -442,7 +442,7 @@ export function WriterContents({ activeTab, page }: WriterContentsProps) {
                   <TableCell className="px-3 py-2">
                     <div className="flex items-center gap-3">
                       <Link
-                        href={`/writer/content/${content.id}/overview`}
+                        href={`/writer/content/${content.id}/content`}
                         aria-label={`${content.moderation_status === 'locked' ? 'ผลงานถูกล็อค' : 'จัดการ'} ${content.title}`}
                         aria-disabled={content.moderation_status === 'locked'}
                         tabIndex={content.moderation_status === 'locked' ? -1 : undefined}
@@ -463,7 +463,7 @@ export function WriterContents({ activeTab, page }: WriterContentsProps) {
                       </Link>
                       <div className="min-w-0">
                         <Link
-                          href={`/writer/content/${content.id}/overview`}
+                          href={`/writer/content/${content.id}/content`}
                           aria-disabled={content.moderation_status === 'locked'}
                           tabIndex={content.moderation_status === 'locked' ? -1 : undefined}
                           className={`flex items-center gap-1.5 truncate font-medium transition-colors hover:text-primary ${
