@@ -19,6 +19,7 @@ import {
 import { useCreateStoryForm } from './create-story-form'
 
 interface StoryMetadataFieldsProps {
+  initialAlternativeTitle?: string
   initialTitle: string
   initialStatus?: StoryStatus
   initialAgeRating?: string
@@ -27,12 +28,14 @@ interface StoryMetadataFieldsProps {
 
 export function StoryMetadataFields({
   children,
+  initialAlternativeTitle = '',
   initialAgeRating = '',
   initialStatus = StoryStatus.DRAFT,
   initialTitle,
 }: StoryMetadataFieldsProps) {
   const { clearFieldError, errors } = useCreateStoryForm()
   const [title, setTitle] = useState(initialTitle)
+  const [alternativeTitle, setAlternativeTitle] = useState(initialAlternativeTitle)
   const [status, setStatus] = useState<StoryStatus>(initialStatus)
   const [ageRating, setAgeRating] = useState(initialAgeRating)
 
@@ -64,6 +67,33 @@ export function StoryMetadataFields({
         />
         {errors.title && (
           <p id="title-error" className="text-xs text-destructive">{errors.title}</p>
+        )}
+      </div>
+
+      <div className="space-y-2 md:col-span-2" data-field="alternative_title">
+        <div className="flex items-center justify-between gap-4">
+          <Label htmlFor="alternative-title" className="text-sm font-semibold">ชื่อเรื่องภาษาอื่น</Label>
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {alternativeTitle.length}/{STORY_TITLE_MAX_LENGTH}
+          </span>
+        </div>
+        <Input
+          id="alternative-title"
+          type="text"
+          name="alternative_title"
+          value={alternativeTitle}
+          onChange={(event) => {
+            setAlternativeTitle(event.target.value)
+            clearFieldError('alternative_title')
+          }}
+          maxLength={STORY_TITLE_MAX_LENGTH}
+          aria-invalid={Boolean(errors.alternative_title)}
+          aria-describedby={errors.alternative_title ? 'alternative-title-error' : undefined}
+          placeholder="กรอกชื่อเรื่องภาษาอื่น (ถ้ามี)"
+          className="h-11 rounded-xl px-3"
+        />
+        {errors.alternative_title && (
+          <p id="alternative-title-error" className="text-xs text-destructive">{errors.alternative_title}</p>
         )}
       </div>
 

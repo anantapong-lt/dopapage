@@ -41,12 +41,14 @@ export function CreateContentDialog({ defaultType }: CreateContentDialogProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
   const [title, setTitle] = useState('')
+  const [alternativeTitle, setAlternativeTitle] = useState('')
   const [contentType, setContentType] = useState<WriterContentTab>(defaultType)
 
   const handleOpenChange = (open: boolean) => {
     setIsOpen(open)
     if (open) {
       setTitle('')
+      setAlternativeTitle('')
       setContentType(defaultType)
     }
   }
@@ -58,6 +60,7 @@ export function CreateContentDialog({ defaultType }: CreateContentDialogProps) {
     if (!trimmedTitle) return
 
     const params = new URLSearchParams({ type: contentType, title: trimmedTitle })
+    if (alternativeTitle.trim()) params.set('alternative_title', alternativeTitle.trim())
     router.push(`/writer/contents/create?${params.toString()}`)
   }
 
@@ -115,6 +118,23 @@ export function CreateContentDialog({ defaultType }: CreateContentDialogProps) {
               required
               autoFocus
               placeholder="กรอกชื่อเรื่อง"
+              className="h-11 rounded-xl border-border bg-background px-3"
+            />
+          </div>
+
+          <div className="mt-5 space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <Label htmlFor="content-alternative-title" className="font-semibold">ชื่อเรื่องภาษาอื่น</Label>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {alternativeTitle.length}/{STORY_TITLE_MAX_LENGTH}
+              </span>
+            </div>
+            <Input
+              id="content-alternative-title"
+              value={alternativeTitle}
+              onChange={(event) => setAlternativeTitle(event.target.value)}
+              maxLength={STORY_TITLE_MAX_LENGTH}
+              placeholder="กรอกชื่อเรื่องภาษาอื่น (ถ้ามี)"
               className="h-11 rounded-xl border-border bg-background px-3"
             />
           </div>

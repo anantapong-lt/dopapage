@@ -34,6 +34,7 @@ export interface WriterContentsResponse {
 export interface WriterContentDetail {
   id: string
   title: string
+  alternative_title: string | null
   slug: string
   synopsis: string | null
   cover_url: string | null

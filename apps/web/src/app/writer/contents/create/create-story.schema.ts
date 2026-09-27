@@ -14,6 +14,9 @@ export const createStorySchema = z.object({
   type: z.enum(StoryType),
   title: z.string().trim().min(1, 'กรุณากรอกชื่อเรื่อง')
     .max(STORY_TITLE_MAX_LENGTH, `ชื่อเรื่องต้องไม่เกิน ${STORY_TITLE_MAX_LENGTH} ตัวอักษร`),
+  alternative_title: z.string().trim()
+    .max(STORY_TITLE_MAX_LENGTH, `ชื่อเรื่องภาษาอื่นต้องไม่เกิน ${STORY_TITLE_MAX_LENGTH} ตัวอักษร`)
+    .optional(),
   slug: z.preprocess(
     (value) => value ?? '',
     z.string().trim()

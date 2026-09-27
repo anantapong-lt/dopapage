@@ -113,6 +113,7 @@ export async function createWriterContent(
   input: CreateWriterContentInput,
 ): Promise<CreatedStory> {
   const title = input.title.trim()
+  const alternativeTitle = optionalText(input.alternative_title)
   const shouldGenerateSlug = input.auto_generate_slug === 'true'
   const submittedSlug = input.slug?.trim() ?? ''
   const slug = shouldGenerateSlug ? createRandomSlug() : submittedSlug
@@ -133,6 +134,7 @@ export async function createWriterContent(
     return await insertWriterContent(creatorUserId, {
       type: input.type,
       title,
+      alternativeTitle,
       slug,
       synopsis,
       coverUrl: uploadedCover?.cover_url ?? null,
@@ -165,6 +167,7 @@ export async function updateWriterContent(
 ): Promise<CreatedStory> {
   const existingStory = await getWriterContent(creatorUserId, contentId, includeLocked)
   const title = input.title.trim()
+  const alternativeTitle = optionalText(input.alternative_title)
   const slug = input.slug.trim()
   const synopsis = optionalText(input.synopsis)
   const secondaryGenreId = optionalText(input.secondary_genre_id)
@@ -188,6 +191,7 @@ export async function updateWriterContent(
     const story = await updateWriterContentRecord(creatorUserId, contentId, {
       type: input.type,
       title,
+      alternativeTitle,
       slug,
       synopsis,
       coverUrl: nextCoverUrl,

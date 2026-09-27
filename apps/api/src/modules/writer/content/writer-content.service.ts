@@ -12,6 +12,7 @@ import { MODERATION_STATUS, type StoryStatus, type StoryType } from '../../../mo
 export interface WriterContentRecordInput {
   type: StoryType
   title: string
+  alternativeTitle: string | null
   slug: string
   synopsis: string | null
   coverUrl: string | null
@@ -28,7 +29,7 @@ export async function findWriterContent(
   includeLocked = false,
 ): Promise<WriterContentDetail | undefined> {
   const [story] = await db<WriterContentDetail[]>`
-    SELECT id, title, slug, synopsis, cover_url, cover_blur_data_url, type, status, age_rating,
+    SELECT id, title, alternative_title, slug, synopsis, cover_url, cover_blur_data_url, type, status, age_rating,
       primary_genre_id, secondary_genre_id
     FROM stories
     WHERE id = ${contentId}
@@ -120,10 +121,10 @@ export async function insertWriterContent(
 ): Promise<CreatedStory> {
   const [story] = await db<CreatedStory[]>`
     INSERT INTO stories (
-      creator_user_id, type, title, slug, synopsis, cover_url, cover_blur_data_url, status,
+      creator_user_id, type, title, alternative_title, slug, synopsis, cover_url, cover_blur_data_url, status,
       age_rating, primary_genre_id, secondary_genre_id
     ) VALUES (
-      ${creatorUserId}, ${input.type}, ${input.title}, ${input.slug}, ${input.synopsis},
+      ${creatorUserId}, ${input.type}, ${input.title}, ${input.alternativeTitle}, ${input.slug}, ${input.synopsis},
       ${input.coverUrl}, ${input.coverBlurDataUrl}, ${input.status}, ${input.ageRating}, ${input.primaryGenreId},
       ${input.secondaryGenreId}
     )
@@ -140,7 +141,7 @@ export async function updateWriterContentRecord(
 ): Promise<CreatedStory | undefined> {
   const [story] = await db<CreatedStory[]>`
     UPDATE stories
-    SET type = ${input.type}, title = ${input.title}, slug = ${input.slug},
+    SET type = ${input.type}, title = ${input.title}, alternative_title = ${input.alternativeTitle}, slug = ${input.slug},
       synopsis = ${input.synopsis}, cover_url = ${input.coverUrl},
       cover_blur_data_url = ${input.coverBlurDataUrl}, status = ${input.status},
       age_rating = ${input.ageRating}, primary_genre_id = ${input.primaryGenreId},

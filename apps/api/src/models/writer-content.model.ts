@@ -34,6 +34,7 @@ export interface WriterContentCount {
 export interface WriterContentDetail {
   id: string
   title: string
+  alternative_title: string | null
   slug: string
   synopsis: string | null
   cover_url: string | null
@@ -58,6 +59,7 @@ export interface MyContentsResult {
 export interface CreateWriterContentInput {
   type: StoryType
   title: string
+  alternative_title?: string
   slug?: string
   auto_generate_slug?: 'true'
   synopsis?: string

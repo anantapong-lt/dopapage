@@ -21,6 +21,7 @@ interface ContentEditorProps {
   embedded?: boolean
   initialContentType?: WriterContentTab
   initialTitle?: string
+  initialAlternativeTitle?: string
 }
 
 export function ContentEditor({
@@ -28,6 +29,7 @@ export function ContentEditor({
   embedded = false,
   initialContentType = 'novel',
   initialTitle = '',
+  initialAlternativeTitle = '',
 }: ContentEditorProps) {
   const { accessToken, status } = useAuth()
   const [story, setStory] = useState<WriterContentDetail | null>(null)
@@ -150,6 +152,7 @@ export function ContentEditor({
       <section className="readji-surface grid gap-5 rounded-2xl p-5 md:grid-cols-2 md:p-6">
         <StoryMetadataFields
           initialTitle={story?.title ?? initialTitle}
+          initialAlternativeTitle={story?.alternative_title ?? initialAlternativeTitle}
           initialStatus={story?.status}
           initialAgeRating={story?.age_rating?.toString() ?? ''}
         >
