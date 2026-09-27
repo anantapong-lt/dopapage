@@ -54,3 +54,9 @@ data_dump.sql
 
 .vercel
 .env*
+
+
+# Runtime uploads from LOCAL_UPLOAD; keep tracked bank logo assets under apps/api/assets/banks.
+/apps/api/assets/stories/
+/apps/api/assets/profiles/
+/apps/api/assets/withdrawal-proofs/
