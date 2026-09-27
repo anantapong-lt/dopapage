@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Controller, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod/v3'
@@ -18,13 +19,8 @@ import {
 import { IconInput, PasswordInput } from './form-inputs'
 import { PasswordStrengthIndicator } from './password-strength-indicator'
 import { TurnstileWidget } from './turnstile-widget'
-import { PhoneVerificationDialog } from './phone-verification-dialog'
-import {
-  registerWithPassword,
-  requestRegistrationPhoneVerification,
-  startRegistrationPhoneVerification,
-  verifyRegistrationPhoneVerification,
-} from '@/controllers/auth.controller'
+import { useAuth } from './auth-provider'
+import { registerWithPassword } from '@/controllers/auth.controller'
 import { ApiError } from '@/lib/api-client'
 import { getApiUrl } from '@/site.config'
 
@@ -54,19 +50,14 @@ type WebsiteAgreement = {
 }
 
 export function RegisterForm() {
+  const router = useRouter()
+  const { refresh } = useAuth()
   const [termsOpen, setTermsOpen] = useState(false)
   const [websiteAgreement, setWebsiteAgreement] = useState<WebsiteAgreement | null>(null)
   const [isLoadingAgreement, setIsLoadingAgreement] = useState(true)
   const [agreementError, setAgreementError] = useState<string | null>(null)
-  const [otpDialogOpen, setOtpDialogOpen] = useState(false)
-  const [successMessage, setSuccessMessage] = useState('')
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
   const [turnstileKey, setTurnstileKey] = useState(0)
-  const [verificationId, setVerificationId] = useState<string | null>(null)
-  const [otpSentAt, setOtpSentAt] = useState(0)
-  const [otpPhoneNumber, setOtpPhoneNumber] = useState('')
-  const [pendingRegistration, setPendingRegistration] = useState<RegisterValues | null>(null)
-  const [isSending, setIsSending] = useState(false)
   const turnstileRequired = process.env.NODE_ENV !== 'development'
   const {
     control,
@@ -79,7 +70,6 @@ export function RegisterForm() {
     clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<RegisterValues>({ resolver: zodResolver(registerSchema), defaultValues: { terms: false } })
-  const phoneNumber = watch('phone_number')
   const password = watch('password')
   const termsAccepted = watch('terms')
 
@@ -111,11 +101,6 @@ export function RegisterForm() {
     return () => controller.abort()
   }, [])
 
-  function resetOtp() {
-    setVerificationId(null)
-    setOtpDialogOpen(false)
-  }
-
   function fillMockRegistration() {
     const suffix = Date.now().toString().slice(-6)
     setValue('u_name', `demo_${suffix}`, { shouldValidate: true })
@@ -125,39 +110,26 @@ export function RegisterForm() {
     setValue('password_confirm', 'DemoPass123!', { shouldValidate: true })
     setValue('terms', true, { shouldValidate: true })
     clearErrors()
-    resetOtp()
-  }
-
-  async function startOtp(phone: string) {
-    if (verificationId && phone === otpPhoneNumber && Date.now() < otpSentAt + 5 * 60 * 1000) {
-      setOtpDialogOpen(true)
-      return
-    }
-    if (turnstileRequired && !turnstileToken) {
-      setError('root', { message: 'กรุณายืนยัน Cloudflare Turnstile ก่อนสมัครสมาชิก' })
-      return
-    }
-    setIsSending(true)
-    clearErrors('root')
-    try {
-      const result = await startRegistrationPhoneVerification(phone, turnstileToken ?? undefined)
-      setOtpSentAt(Date.now())
-      setOtpPhoneNumber(phone)
-      setVerificationId(result.verification_id)
-      setOtpDialogOpen(true)
-    } catch (error) {
-      setError('phone_number', { message: error instanceof ApiError ? error.message : 'ไม่สามารถส่งรหัส OTP ได้' })
-    } finally {
-      setTurnstileToken(null)
-      setTurnstileKey((value) => value + 1)
-      setIsSending(false)
-    }
   }
 
   async function onSubmit(values: RegisterValues) {
-    setSuccessMessage('')
-    setPendingRegistration(values)
-    await startOtp(values.phone_number)
+    clearErrors('root')
+    try {
+      await registerWithPassword({
+        username: values.u_name,
+        email: values.email,
+        phone_number: values.phone_number,
+        password: values.password,
+        turnstile_token: turnstileToken ?? undefined,
+      })
+      if (!(await refresh())) throw new Error('ไม่สามารถเริ่มเซสชันหลังสมัครสมาชิกได้')
+      router.replace('/')
+    } catch (error) {
+      setError('root', { message: error instanceof ApiError ? error.message : 'ไม่สามารถสมัครสมาชิกได้ กรุณาลองใหม่อีกครั้ง' })
+    } finally {
+      setTurnstileToken(null)
+      setTurnstileKey((value) => value + 1)
+    }
   }
 
   async function registerWithGoogle() {
@@ -165,34 +137,12 @@ export function RegisterForm() {
     window.location.assign(getApiUrl('/auth/google/register'))
   }
 
-  async function requestDialogOtp(phone: string, token: string | undefined) {
-    const result = await requestRegistrationPhoneVerification(phone, token)
-    setOtpSentAt(Date.now())
-    setOtpPhoneNumber(phone)
-    setVerificationId(result.verification_id)
-  }
-
-  async function verifyDialogOtp(_phone: string, otp: string) {
-    if (!verificationId || !pendingRegistration) throw new Error('ไม่พบคำขอยืนยันเบอร์มือถือ')
-    const result = await verifyRegistrationPhoneVerification(verificationId, otp)
-    const registration = await registerWithPassword({
-      username: pendingRegistration.u_name,
-      email: pendingRegistration.email,
-      password: pendingRegistration.password,
-      registration_phone_verification_id: verificationId,
-      registration_phone_verification_token: result.verification_token,
-    })
-    setOtpDialogOpen(false)
-    setSuccessMessage(registration.message)
-  }
-
   return (
     <>
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" aria-busy={isSubmitting || isSending}>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" aria-busy={isSubmitting}>
         {process.env.NODE_ENV === 'development' && (
           <div className="flex justify-end gap-3 text-xs">
             <button type="button" onClick={fillMockRegistration} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">กรอกข้อมูลตัวอย่าง</button>
-            <button type="button" onClick={() => setOtpDialogOpen(true)} className="text-muted-foreground underline underline-offset-2 hover:text-foreground">ดูตัวอย่าง Dialog OTP</button>
           </div>
         )}
         <div>
@@ -212,7 +162,7 @@ export function RegisterForm() {
             placeholder="0812345678"
             inputMode="tel"
             autoComplete="tel"
-            {...register('phone_number', { onChange: resetOtp })}
+            {...register('phone_number')}
           />
           {errors.phone_number && <p className="mt-1 text-xs text-destructive">{errors.phone_number.message}</p>}
         </div>
@@ -254,10 +204,10 @@ export function RegisterForm() {
         <TurnstileWidget key={turnstileKey} action="register" onTokenChange={setTurnstileToken} />
         <button
           type="submit"
-          disabled={!termsAccepted || isSubmitting || isSending || (turnstileRequired && !turnstileToken)}
+          disabled={!termsAccepted || isSubmitting || (turnstileRequired && !turnstileToken)}
           className="h-11 w-full rounded-lg bg-primary px-4 text-base font-medium text-primary-foreground disabled:opacity-60"
         >
-          {isSending ? 'กำลังส่ง OTP...' : 'สมัครสมาชิก'}
+          {isSubmitting ? 'กำลังสมัครสมาชิก...' : 'สมัครสมาชิก'}
         </button>
         <div className="flex items-center gap-3">
           <div className="h-px flex-1 bg-border" />
@@ -277,26 +227,12 @@ export function RegisterForm() {
             {errors.root.message}
           </p>
         )}
-        {successMessage && (
-          <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-center text-sm text-primary">
-            {successMessage}
-          </p>
-        )}
         <div className="flex justify-end">
           <Link href="/login" className="text-sm text-primary hover:underline">
             กลับไปหน้าเข้าสู่ระบบ
           </Link>
         </div>
       </form>
-      <PhoneVerificationDialog
-        open={otpDialogOpen}
-        initialPhoneNumber={phoneNumber}
-        initialOtpSent={Boolean(verificationId)}
-        initialOtpSentAt={otpSentAt}
-        onOpenChange={setOtpDialogOpen}
-        onRequestOtp={(phone, token) => requestDialogOtp(phone, token)}
-        onVerifyOtp={verifyDialogOtp}
-      />
       <Dialog open={termsOpen} onOpenChange={setTermsOpen}>
         <DialogContent className="max-h-[85vh] sm:max-w-3xl">
           <DialogHeader>

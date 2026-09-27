@@ -58,10 +58,9 @@ export function getAccountSecurity(accessToken: string): Promise<{ account: Acco
 export interface RegisterWithPasswordInput {
   username: string
   email: string
+  phone_number: string
   password: string
   turnstile_token?: string
-  registration_phone_verification_id: string
-  registration_phone_verification_token: string
 }
 
 export function requestRegistrationPhoneVerification(phoneNumber: string, turnstileToken?: string): Promise<{ message: string; verification_id: string; expires_in: number }> {

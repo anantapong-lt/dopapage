@@ -106,7 +106,47 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   })
   .post(
     '/register',
-    ({ body }) => registerWithEmail(body),
+    async ({ accessJwt, body, cookie, refreshJwt, set }) => {
+      const registration = await registerWithEmail(body)
+      if (registration.status !== 201) return registration
+
+      const result = await authenticateWithPassword(body.email, body.password, { allowUnverified: true })
+      if (result.status !== 'authenticated') {
+        set.status = 500
+        return { message: 'สมัครสมาชิกสำเร็จ แต่ไม่สามารถเข้าสู่ระบบอัตโนมัติได้ กรุณาลองเข้าสู่ระบบอีกครั้ง' }
+      }
+
+      const claims = {
+        sub: result.user.id,
+        role: result.user.role,
+      }
+      const accessToken = await accessJwt.sign({
+        ...claims,
+        token_type: 'access',
+      })
+      const refreshTokenId = crypto.randomUUID()
+      const sessionId = await createAuthSession(result.user.id, refreshTokenId)
+      const refreshToken = await refreshJwt.sign({
+        ...claims,
+        jti: refreshTokenId,
+        sid: sessionId,
+        token_type: 'refresh',
+      })
+
+      cookie[REFRESH_COOKIE_NAME].set({
+        value: refreshToken,
+        ...REFRESH_COOKIE_OPTIONS,
+        maxAge: REFRESH_TOKEN_TTL_SECONDS,
+      })
+
+      return {
+        message: 'สมัครสมาชิกสำเร็จ',
+        access_token: accessToken,
+        token_type: 'Bearer',
+        expires_in: ACCESS_TOKEN_TTL_SECONDS,
+        user: result.user,
+      }
+    },
     { body: registerBodySchema },
   )
   .post(
@@ -136,7 +176,7 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   .post(
     '/login',
     async ({ accessJwt, body, cookie, refreshJwt, set }) => {
-      const result = await authenticateWithPassword(body.email, body.password)
+      const result = await authenticateWithPassword(body.email, body.password, { allowUnverified: true })
 
       if (result.status === 'invalid_credentials') {
         set.status = 401

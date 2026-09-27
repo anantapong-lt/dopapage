@@ -113,7 +113,7 @@ export async function requestPhoneVerification(userId: string, phoneNumber: stri
   const [user] = await db<{ id: string }[]>`
     SELECT id FROM users
     WHERE id = ${userId} AND status = 'active'
-      AND (email_verified_at IS NOT NULL OR phone_verified_at IS NOT NULL) AND deleted_at IS NULL
+      AND deleted_at IS NULL
     LIMIT 1
   `
   if (!user) return 'inactive'
@@ -165,7 +165,7 @@ export async function verifyPhoneVerification(
         UPDATE users
         SET phone_number = ${phoneNumber}, phone_verified_at = NOW(), updated_at = NOW()
         WHERE id = ${userId} AND status = 'active'
-          AND (email_verified_at IS NOT NULL OR phone_verified_at IS NOT NULL) AND deleted_at IS NULL
+          AND deleted_at IS NULL
         RETURNING id
       `
       if (!updated.length) return 'inactive'

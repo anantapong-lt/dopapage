@@ -1,6 +1,5 @@
 import { db } from '../../db'
 import type { UserModel } from '../../models/user.model'
-import { consumeRegistrationPhoneVerification } from './registration-phone.service'
 
 interface UserWithPassword extends UserModel {
   password_hash: string
@@ -52,15 +51,15 @@ function isUniqueViolation(error: unknown): boolean {
   )
 }
 
-export async function createPhoneVerifiedRegistration(
+export async function createPendingPhoneRegistration(
   email: string,
   username: string,
+  phoneNumber: string,
   password: string,
-  registrationPhoneVerificationId: string,
-  registrationPhoneVerificationToken: string,
 ): Promise<void> {
   const normalizedEmail = email.trim().toLowerCase()
   const normalizedUsername = username.trim()
+  const normalizedPhoneNumber = `+66${phoneNumber.slice(1)}`
 
   if (normalizedUsername.length < 3 || normalizedUsername.length > 30) {
     throw new RegistrationError('ชื่อผู้ใช้งานต้องมี 3 ถึง 30 ตัวอักษร', 400, 'username')
@@ -70,17 +69,11 @@ export async function createPhoneVerifiedRegistration(
 
   try {
     await db.begin(async (transaction) => {
-      const phoneNumber = await consumeRegistrationPhoneVerification(
-        transaction,
-        registrationPhoneVerificationId,
-        registrationPhoneVerificationToken,
-      )
-      if (!phoneNumber) throw new RegistrationError('กรุณายืนยันเบอร์มือถือก่อนสมัครสมาชิก', 400, 'phone_number')
-
-      const [existingUser] = await transaction<{ email_exists: boolean; username_exists: boolean }[]>`
+      const [existingUser] = await transaction<{ email_exists: boolean; username_exists: boolean; phone_exists: boolean }[]>`
         SELECT
           EXISTS(SELECT 1 FROM users WHERE LOWER(email) = LOWER(${normalizedEmail})) AS email_exists,
-          EXISTS(SELECT 1 FROM users WHERE LOWER(username) = LOWER(${normalizedUsername})) AS username_exists
+          EXISTS(SELECT 1 FROM users WHERE LOWER(username) = LOWER(${normalizedUsername})) AS username_exists,
+          EXISTS(SELECT 1 FROM users WHERE phone_number = ${normalizedPhoneNumber}) AS phone_exists
       `
 
       if (existingUser?.email_exists) {
@@ -89,13 +82,16 @@ export async function createPhoneVerifiedRegistration(
       if (existingUser?.username_exists) {
         throw new RegistrationError('ชื่อผู้ใช้งานนี้ถูกใช้งานแล้ว', 409, 'username')
       }
+      if (existingUser?.phone_exists) {
+        throw new RegistrationError('เบอร์มือถือถูกใช้งานกับบัญชีอื่นแล้ว', 409, 'phone_number')
+      }
 
       const [user] = await transaction<{ id: string }[]>`
-        INSERT INTO users (email, username, display_name, phone_number, phone_verified_at)
-        VALUES (${normalizedEmail}, ${normalizedUsername}, ${normalizedUsername}, ${phoneNumber}, NOW())
+        INSERT INTO users (email, username, display_name, phone_number)
+        VALUES (${normalizedEmail}, ${normalizedUsername}, ${normalizedUsername}, ${normalizedPhoneNumber})
         RETURNING id
       `
-      if (!user) throw new Error('Unable to create phone-verified user')
+      if (!user) throw new Error('Unable to create pending-phone user')
 
       await transaction`
         INSERT INTO user_password_credentials (user_id, password_hash)
@@ -193,7 +189,6 @@ export async function findActiveUserById(id: string): Promise<AuthenticatedUser 
     FROM users
     WHERE id = ${id}
       AND status = 'active'
-      AND (email_verified_at IS NOT NULL OR phone_verified_at IS NOT NULL)
       AND deleted_at IS NULL
     LIMIT 1
   `
@@ -275,6 +270,7 @@ export async function revokeAuthSession(sessionId: string, userId: string): Prom
 export async function authenticateWithPassword(
   email: string,
   password: string,
+  options: { allowUnverified?: boolean } = {},
 ): Promise<AuthenticationResult> {
   const [user] = await db<UserWithPassword[]>`
     SELECT
@@ -293,7 +289,7 @@ export async function authenticateWithPassword(
   }
 
   if (user.status !== 'active') return { status: 'inactive' }
-  if (!user.email_verified_at && !user.phone_verified_at) return { status: 'unverified' }
+  if (!options.allowUnverified && !user.email_verified_at && !user.phone_verified_at) return { status: 'unverified' }
 
 
   await db`

@@ -61,7 +61,7 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
   const [errors, setErrors] = useState<Record<string, string>>({})
   const isSlotChildren = typeof children === 'function'
   const actionBarClassName = isSlotChildren
-    ? 'mt-5 grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-center'
+    ? 'grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-center md:col-span-2'
     : 'grid grid-cols-2 gap-3 border-t border-border pt-5 sm:flex sm:flex-wrap sm:items-center sm:justify-center lg:col-span-2'
 
   const updateFormState = useCallback(() => {
@@ -206,7 +206,7 @@ export function CreateStoryForm({ cancelHref, children, contentId }: CreateStory
       onSubmit={handleSubmit}
       onChange={scheduleFormStateUpdate}
       noValidate
-      className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(240px,1fr)] lg:items-start"
+      className="mt-6 grid min-w-0 gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(240px,1fr)] lg:items-start"
     >
       <CreateStoryFormContext.Provider value={contextValue}>
         {isSlotChildren ? children({ actions: actionBar }) : children}

@@ -36,7 +36,7 @@ export function ContentEditor({
   const [isLoading, setIsLoading] = useState(Boolean(contentId))
   const [loadError, setLoadError] = useState<string | null>(null)
   const Root = embedded ? 'div' : 'main'
-  const rootClassName = embedded ? 'mt-6' : 'min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8 '
+  const rootClassName = embedded ? 'mt-6 min-w-0' : 'min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8 '
   const containerClassName = embedded ? '' : 'mx-auto max-w-7xl'
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export function ContentEditor({
           </div>
 
           <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(240px,1fr)] lg:items-start">
-            <section className="readji-surface grid gap-5 rounded-2xl p-5 md:grid-cols-2 md:p-6">
+            <section className="readji-surface grid min-w-0 gap-5 rounded-2xl p-5 md:grid-cols-2 md:p-6">
               <div className="space-y-2 md:col-span-2">
                 <Skeleton className="h-4 w-24" />
                 <Skeleton className="h-11 w-full rounded-xl" />
@@ -109,7 +109,7 @@ export function ContentEditor({
               ))}
             </section>
 
-            <aside className="readji-surface rounded-2xl p-5 md:p-6">
+            <aside className="readji-surface min-w-0 rounded-2xl p-5 md:p-6">
               <Skeleton className="mb-3 h-4 w-16" />
               <Skeleton className="aspect-[3/4] w-full rounded-2xl" />
             </aside>
@@ -149,7 +149,7 @@ export function ContentEditor({
     <>
       <input type="hidden" name="type" value={databaseType} />
 
-      <section className="readji-surface grid gap-5 rounded-2xl p-5 md:grid-cols-2 md:p-6">
+      <section className="readji-surface grid min-w-0 gap-5 rounded-2xl p-5 md:grid-cols-2 md:p-6">
         <StoryMetadataFields
           initialTitle={story?.title ?? initialTitle}
           initialAlternativeTitle={story?.alternative_title ?? initialAlternativeTitle}
@@ -164,11 +164,12 @@ export function ContentEditor({
           initialPrimaryGenreId={story?.primary_genre_id}
           initialSecondaryGenreId={story?.secondary_genre_id ?? ''}
         />
+
+        {actions}
       </section>
 
-      <aside className="readji-surface rounded-2xl p-5 md:p-6">
+      <aside className="readji-surface min-w-0 rounded-2xl p-5 md:p-6">
         <CoverImageUpload initialCoverUrl={story?.cover_url} />
-        {actions}
       </aside>
     </>
   )
