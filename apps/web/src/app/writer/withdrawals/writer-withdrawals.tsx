@@ -219,7 +219,7 @@ export function WriterWithdrawals() {
         )}
 
         <section className="mt-6 grid gap-4 lg:grid-cols-3">
-          <article className="readji-surface rounded-2xl bg-card p-5 lg:col-span-2">
+          <article className="readji-surface rounded-2xl bg-card p-5">
             <p className="text-sm text-muted-foreground">ยอดที่ถอนได้</p>
             <p className="mt-2 flex items-center gap-2 text-3xl font-bold tabular-nums text-primary">
               <Banknote className="size-7 shrink-0" />
@@ -229,6 +229,16 @@ export function WriterWithdrawals() {
             <p className="mt-3 text-xs text-muted-foreground">
               ค่าคอมมิชชันเมื่อถอน {displayAmount(data.commission_percent)}% และระบบจะคำนวณยอดสุทธิให้ก่อนยืนยัน
             </p>
+          </article>
+
+          <article className="readji-surface rounded-2xl bg-card p-5">
+            <p className="text-sm text-muted-foreground">ยอดขายทั้งหมด</p>
+            <p className="mt-2 flex items-center gap-2 text-3xl font-bold tabular-nums text-primary">
+              <Banknote className="size-7 shrink-0" />
+              {displayAmount(data.total_sales)}
+              <span className="text-base font-medium text-muted-foreground">{WITHDRAWAL_CURRENCY}</span>
+            </p>
+            <p className="mt-3 text-xs text-muted-foreground">ยอดเงินจากการขายทุกตอนตลอดเวลา</p>
           </article>
 
           <article className="readji-surface rounded-2xl bg-card p-5">

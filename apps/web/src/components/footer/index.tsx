@@ -41,26 +41,28 @@ function FooterItem({ label, icon: Icon, href }: { label: string; icon: typeof H
 export function Footer({ registrationEnabled }: { registrationEnabled: boolean }) {
   const pathname = usePathname()
   if (/^\/content\/[^/]+\/[^/]+$/.test(pathname)) return null
+  const isHomePage = pathname === '/'
+  const brandName = isHomePage ? 'Dopapage' : SITE_CONFIG.name
 
   return (
     <footer className="mt-16 bg-[linear-gradient(135deg,#34181d_0%,#54252b_56%,#713b44_100%)] shadow-[0_-18px_44px_-40px_rgb(45_29_32_/_0.8)]">
       <div className="mx-auto max-w-[1280px] px-4 py-14 md:px-8">
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2">
+        <div className={isHomePage ? 'grid gap-10 sm:grid-cols-2' : 'grid gap-10 sm:grid-cols-2 lg:grid-cols-5'}>
+          <div className={isHomePage ? undefined : 'lg:col-span-2'}>
             <Link href="/" className="text-2xl font-extrabold tracking-[-0.04em] text-[#F1F1EF] transition-opacity hover:opacity-80">
-              {SITE_CONFIG.name}
+              {brandName}
             </Link>
             <p className="mt-3 max-w-sm text-sm text-[#F1F1EF]/70">{SITE_CONFIG.description}</p>
           </div>
 
-          <div>
+          {!isHomePage && <div>
             <h3 className="mb-4 text-sm font-semibold text-[#F1F1EF]">สำรวจ</h3>
             <ul className="flex flex-col gap-2.5">
               {EXPLORE_ITEMS.map((item) => <li key={item.label}><FooterItem {...item} /></li>)}
             </ul>
-          </div>
+          </div>}
 
-          <div>
+          {!isHomePage && <div>
             <h3 className="mb-4 text-sm font-semibold text-[#F1F1EF]">บัญชี</h3>
             <ul className="flex flex-col gap-2.5">
               {ACCOUNT_ITEMS.map((item) => <li key={item.label}><FooterItem {...item} /></li>)}
@@ -69,7 +71,7 @@ export function Footer({ registrationEnabled }: { registrationEnabled: boolean }
               <Link href="/login" className="text-[#F1F1EF]/70 hover:text-[#F1F1EF]">เข้าสู่ระบบ</Link>
               {registrationEnabled && <Link href="/register" className="text-[#F1F1EF]/70 hover:text-[#F1F1EF]">สมัครสมาชิก</Link>}
             </div>
-          </div>
+          </div>}
 
           <div>
             <h3 className="mb-4 text-sm font-semibold text-[#F1F1EF]">ช่วยเหลือ</h3>
@@ -83,7 +85,7 @@ export function Footer({ registrationEnabled }: { registrationEnabled: boolean }
 
       <div className="border-t border-[#F1F1EF]/15">
         <div className="mx-auto max-w-[1280px] px-4 py-5 text-center text-xs text-[#F1F1EF]/60 md:px-8">
-          © {new Date().getFullYear()} {SITE_CONFIG.name} สงวนลิขสิทธิ์
+          © {new Date().getFullYear()} {brandName} สงวนลิขสิทธิ์
         </div>
       </div>
     </footer>

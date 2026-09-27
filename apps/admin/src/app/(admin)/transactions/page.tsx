@@ -1,7 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { Banknote, CheckCircle2, Copy, ExternalLink, Eye, FileText, MoreHorizontal, Search, UploadCloud, XCircle } from 'lucide-react'
+import {
+  Banknote,
+  CheckCircle2,
+  Copy,
+  ExternalLink,
+  Eye,
+  FileText,
+  MoreHorizontal,
+  Search,
+  UploadCloud,
+  XCircle,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { useAdminAuth } from '@/components/admin-auth-provider'
@@ -52,16 +63,28 @@ interface BankConfig {
 }
 
 const statusLabels: Record<WithdrawalStatus, string> = {
-  [WITHDRAWAL_STATUS.PENDING]: 'รอตรวจสอบ', [WITHDRAWAL_STATUS.APPROVED]: 'อนุมัติแล้ว', [WITHDRAWAL_STATUS.PAID]: 'จ่ายเงินแล้ว', [WITHDRAWAL_STATUS.REJECTED]: 'ปฏิเสธ',
+  [WITHDRAWAL_STATUS.PENDING]: 'รอตรวจสอบ',
+  [WITHDRAWAL_STATUS.APPROVED]: 'อนุมัติแล้ว',
+  [WITHDRAWAL_STATUS.PAID]: 'จ่ายเงินแล้ว',
+  [WITHDRAWAL_STATUS.REJECTED]: 'ปฏิเสธ',
 }
 
 const statusClasses: Record<WithdrawalStatus, string> = {
-  [WITHDRAWAL_STATUS.PENDING]: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300', [WITHDRAWAL_STATUS.APPROVED]: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300', [WITHDRAWAL_STATUS.PAID]: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300', [WITHDRAWAL_STATUS.REJECTED]: 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
+  [WITHDRAWAL_STATUS.PENDING]:
+    'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300',
+  [WITHDRAWAL_STATUS.APPROVED]:
+    'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300',
+  [WITHDRAWAL_STATUS.PAID]:
+    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  [WITHDRAWAL_STATUS.REJECTED]:
+    'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950 dark:text-red-300',
 }
 
 const methodLabels: Record<PaymentMethod, string> = { bank: 'โอนผ่านธนาคาร', promptpay: 'พร้อมเพย์' }
 const statusNotes: Record<Exclude<WithdrawalStatus, typeof WITHDRAWAL_STATUS.PENDING>, string> = {
-  [WITHDRAWAL_STATUS.APPROVED]: 'อนุมัติแล้วและอยู่ระหว่างรอจ่ายเงิน', [WITHDRAWAL_STATUS.PAID]: 'โอนเงินเรียบร้อยแล้ว', [WITHDRAWAL_STATUS.REJECTED]: 'ปฏิเสธคำขอโดยผู้ดูแลระบบ',
+  [WITHDRAWAL_STATUS.APPROVED]: 'อนุมัติแล้วและอยู่ระหว่างรอจ่ายเงิน',
+  [WITHDRAWAL_STATUS.PAID]: 'โอนเงินเรียบร้อยแล้ว',
+  [WITHDRAWAL_STATUS.REJECTED]: 'ปฏิเสธคำขอโดยผู้ดูแลระบบ',
 }
 
 const money = (amount: number) => amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -99,7 +122,7 @@ export default function TransactionsPage() {
     })
       .then(async (response) => {
         if (!response.ok) return
-        const body = await response.json() as { banks: BankConfig[] }
+        const body = (await response.json()) as { banks: BankConfig[] }
         if (!controller.signal.aborted) setBanks(body.banks)
       })
       .catch(() => undefined)
@@ -125,23 +148,41 @@ export default function TransactionsPage() {
     void fetch(requestUrl, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include' })
       .then(async (response) => {
         if (!response.ok) throw new Error('ไม่สามารถโหลดคำขอถอนเงินได้')
-        const body = await response.json() as { requests: Array<{ id: string; user: { display_name: string; username: string }; requested_amount: string; commission_amount: string; net_amount: string; bank_code: string; account_number: string; requested_at: string; status: WithdrawalStatus; note: string | null; processed_by: string | null; has_proof: boolean }> }
-        if (isCurrentRequest) setRequests(body.requests.map((request) => ({
-          id: request.id,
-          user: { displayName: request.user.display_name, username: request.user.username },
-          requestedAmount: Number(request.requested_amount),
-          fee: Number(request.commission_amount),
-          netAmount: Number(request.net_amount),
-          paymentMethod: 'bank',
-          bankCode: request.bank_code,
-          accountNumber: request.account_number,
-          submittedAt: request.requested_at,
-          status: request.status,
-          processedBy: request.processed_by,
-          note: request.note,
-          transferProofName: request.has_proof ? 'หลักฐานการโอน' : null,
-          transferProofUrl: null,
-        })))
+        const body = (await response.json()) as {
+          requests: Array<{
+            id: string
+            user: { display_name: string; username: string }
+            requested_amount: string
+            commission_amount: string
+            net_amount: string
+            bank_code: string
+            account_number: string
+            requested_at: string
+            status: WithdrawalStatus
+            note: string | null
+            processed_by: string | null
+            has_proof: boolean
+          }>
+        }
+        if (isCurrentRequest)
+          setRequests(
+            body.requests.map((request) => ({
+              id: request.id,
+              user: { displayName: request.user.display_name, username: request.user.username },
+              requestedAmount: Number(request.requested_amount),
+              fee: Number(request.commission_amount),
+              netAmount: Number(request.net_amount),
+              paymentMethod: 'bank',
+              bankCode: request.bank_code,
+              accountNumber: request.account_number,
+              submittedAt: request.requested_at,
+              status: request.status,
+              processedBy: request.processed_by,
+              note: request.note,
+              transferProofName: request.has_proof ? 'หลักฐานการโอน' : null,
+              transferProofUrl: null,
+            })),
+          )
       })
       .catch(() => {
         if (isCurrentRequest) setRequests([])
@@ -186,14 +227,24 @@ export default function TransactionsPage() {
     options: { proofName?: string; proofUrl?: string; proofFile?: File; note?: string } = {},
   ) {
     if (!accessToken) return
-    const action = nextStatus === WITHDRAWAL_STATUS.APPROVED ? 'approve' : nextStatus === WITHDRAWAL_STATUS.REJECTED ? 'reject' : 'pay'
+    const action =
+      nextStatus === WITHDRAWAL_STATUS.APPROVED
+        ? 'approve'
+        : nextStatus === WITHDRAWAL_STATUS.REJECTED
+          ? 'reject'
+          : 'pay'
     const form = new FormData()
     form.set('action', action)
     if (options.note?.trim()) form.set('note', options.note.trim())
     if (options.proofFile) form.set('proof', options.proofFile)
-    const response = await fetch(`${apiUrl}/admin/withdrawals/${requestId}`, { method: 'PUT', headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include', body: form })
+    const response = await fetch(`${apiUrl}/admin/withdrawals/${requestId}`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+      body: form,
+    })
     if (!response.ok) {
-      const body = await response.json().catch(() => null) as { message?: string } | null
+      const body = (await response.json().catch(() => null)) as { message?: string } | null
       throw new Error(body?.message ?? 'ไม่สามารถอัปเดตสถานะคำขอได้')
     }
     const updateRequest = (request: WithdrawalRequest): WithdrawalRequest =>
@@ -201,24 +252,39 @@ export default function TransactionsPage() {
         ? {
             ...request,
             status: nextStatus,
-            processedBy: 'admin@dopahub.com',
+            processedBy: 'admin@Dopapage.com',
             note: options.note?.trim() || statusNotes[nextStatus],
             transferProofName:
-              nextStatus === WITHDRAWAL_STATUS.APPROVED ? (options.proofName ?? request.transferProofName) : request.transferProofName,
+              nextStatus === WITHDRAWAL_STATUS.APPROVED
+                ? (options.proofName ?? request.transferProofName)
+                : request.transferProofName,
             transferProofUrl:
-              nextStatus === WITHDRAWAL_STATUS.APPROVED ? (options.proofUrl ?? request.transferProofUrl) : request.transferProofUrl,
+              nextStatus === WITHDRAWAL_STATUS.APPROVED
+                ? (options.proofUrl ?? request.transferProofUrl)
+                : request.transferProofUrl,
           }
         : request
 
     setRequests((current) => current.map(updateRequest))
     setSelectedRequest((current) => (current?.id === requestId ? updateRequest(current) : current))
-    toast.success(nextStatus === WITHDRAWAL_STATUS.APPROVED ? 'อนุมัติคำขอและส่งการแจ้งเตือนแล้ว' : nextStatus === WITHDRAWAL_STATUS.REJECTED ? 'ปฏิเสธคำขอและส่งการแจ้งเตือนแล้ว' : 'ยืนยันการจ่ายเงินแล้ว')
+    toast.success(
+      nextStatus === WITHDRAWAL_STATUS.APPROVED
+        ? 'อนุมัติคำขอและส่งการแจ้งเตือนแล้ว'
+        : nextStatus === WITHDRAWAL_STATUS.REJECTED
+          ? 'ปฏิเสธคำขอและส่งการแจ้งเตือนแล้ว'
+          : 'ยืนยันการจ่ายเงินแล้ว',
+    )
   }
 
   async function approveRequest() {
     if (!approvalRequest || !transferProofName) return
     try {
-      await updateStatus(approvalRequest.id, WITHDRAWAL_STATUS.APPROVED, { proofName: transferProofName, proofUrl: transferProofUrl, proofFile: transferProofFile ?? undefined, note: approvalNote })
+      await updateStatus(approvalRequest.id, WITHDRAWAL_STATUS.APPROVED, {
+        proofName: transferProofName,
+        proofUrl: transferProofUrl,
+        proofFile: transferProofFile ?? undefined,
+        note: approvalNote,
+      })
       closeApprovalDialog()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'ไม่สามารถอนุมัติคำขอได้')
@@ -262,9 +328,12 @@ export default function TransactionsPage() {
 
   async function openTransferProof(requestId: string) {
     if (!accessToken) return
-    const response = await fetch(`${apiUrl}/admin/withdrawals/${requestId}/proof`, { headers: { Authorization: `Bearer ${accessToken}` }, credentials: 'include' })
+    const response = await fetch(`${apiUrl}/admin/withdrawals/${requestId}/proof`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      credentials: 'include',
+    })
     if (!response.ok) return
-    const body = await response.json() as { url: string }
+    const body = (await response.json()) as { url: string }
     window.open(body.url, '_blank', 'noopener,noreferrer')
   }
 
@@ -367,15 +436,37 @@ export default function TransactionsPage() {
                 {isLoadingRequests && requests.length === 0 ? (
                   Array.from({ length: 6 }, (_, index) => (
                     <TableRow key={index}>
-                      <TableCell className="py-3"><Skeleton className="h-4 w-36" /><Skeleton className="mt-2 h-3 w-24" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="h-4 w-28" /><Skeleton className="mt-2 h-3 w-32" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="h-4 w-28" /><Skeleton className="mt-2 h-3 w-20" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="ml-auto h-4 w-20" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="ml-auto h-4 w-20" /><Skeleton className="mt-2 ml-auto h-3 w-16" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="h-4 w-28" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="h-4 w-32" /></TableCell>
-                      <TableCell className="py-3"><Skeleton className="ml-auto size-8" /></TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-4 w-36" />
+                        <Skeleton className="mt-2 h-3 w-24" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="mt-2 h-3 w-32" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-4 w-28" />
+                        <Skeleton className="mt-2 h-3 w-20" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="ml-auto h-4 w-20" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="ml-auto h-4 w-20" />
+                        <Skeleton className="mt-2 ml-auto h-3 w-16" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-6 w-20 rounded-full" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-4 w-28" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-4 w-32" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="ml-auto size-8" />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : filteredRequests.length ? (
@@ -387,12 +478,12 @@ export default function TransactionsPage() {
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="font-medium">{request.user.displayName}</div>
-                        <div className="text-xs text-muted-foreground">
-                          @{request.user.username}
-                        </div>
+                        <div className="text-xs text-muted-foreground">@{request.user.username}</div>
                       </TableCell>
                       <TableCell className="py-3">
-                        <div className="font-medium">{request.bankCode} •••• {request.accountNumber.slice(-4)}</div>
+                        <div className="font-medium">
+                          {request.bankCode} •••• {request.accountNumber.slice(-4)}
+                        </div>
                         <div className="text-xs text-muted-foreground">
                           {request.paymentMethod === 'bank' ? 'บัญชีธนาคาร' : 'หมายเลขพร้อมเพย์'}
                         </div>
@@ -436,10 +527,7 @@ export default function TransactionsPage() {
                                   <CheckCircle2 />
                                   อนุมัติ
                                 </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  variant="destructive"
-                                  onClick={() => setRejectionRequest(request)}
-                                >
+                                <DropdownMenuItem variant="destructive" onClick={() => setRejectionRequest(request)}>
                                   <XCircle />
                                   ปฏิเสธ
                                 </DropdownMenuItem>
@@ -494,20 +582,33 @@ export default function TransactionsPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground">ยอดที่จะได้รับ</p>
-                        <p className="mt-1 text-3xl font-semibold tracking-tight text-primary">{money(selectedRequest.netAmount)}</p>
+                        <p className="mt-1 text-3xl font-semibold tracking-tight text-primary">
+                          {money(selectedRequest.netAmount)}
+                        </p>
                       </div>
-                      <div className="rounded-lg bg-primary/15 p-2.5 text-primary"><Banknote className="size-5" /></div>
+                      <div className="rounded-lg bg-primary/15 p-2.5 text-primary">
+                        <Banknote className="size-5" />
+                      </div>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3 border-t border-primary/15 pt-3 text-sm">
-                      <div><p className="text-muted-foreground">ยอดที่ขอถอน</p><p className="mt-1 font-medium">{money(selectedRequest.requestedAmount)}</p></div>
-                      <div><p className="text-muted-foreground">ค่าธรรมเนียม</p><p className="mt-1 font-medium">{money(selectedRequest.fee)}</p></div>
+                      <div>
+                        <p className="text-muted-foreground">ยอดที่ขอถอน</p>
+                        <p className="mt-1 font-medium">{money(selectedRequest.requestedAmount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ค่าธรรมเนียม</p>
+                        <p className="mt-1 font-medium">{money(selectedRequest.fee)}</p>
+                      </div>
                     </div>
                   </section>
 
                   <section className="space-y-3">
                     <p className="text-sm font-semibold">ข้อมูลคำขอ</p>
                     <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2">
-                      <Detail label="ผู้ขอถอน" value={`${selectedRequest.user.displayName} (@${selectedRequest.user.username})`} />
+                      <Detail
+                        label="ผู้ขอถอน"
+                        value={`${selectedRequest.user.displayName} (@${selectedRequest.user.username})`}
+                      />
                       <Detail label="วันที่ส่งคำขอ" value={dateTime(selectedRequest.submittedAt)} />
                       <Detail label="ช่องทางรับเงิน" value={methodLabels[selectedRequest.paymentMethod]} />
                       <div className="space-y-1">
@@ -523,9 +624,7 @@ export default function TransactionsPage() {
                           ) : (
                             <span className="text-sm font-medium">{selectedRequest.bankCode}</span>
                           )}
-                          <p className="select-text break-all text-sm font-medium">
-                            {selectedRequest.accountNumber}
-                          </p>
+                          <p className="select-text break-all text-sm font-medium">{selectedRequest.accountNumber}</p>
                           <Button
                             type="button"
                             variant="outline"
@@ -548,11 +647,16 @@ export default function TransactionsPage() {
                       <div className="space-y-1">
                         <p className="text-xs font-medium tracking-wide text-muted-foreground">หลักฐานการโอน</p>
                         {selectedRequest.transferProofName ? (
-                          <button onClick={() => void openTransferProof(selectedRequest.id)} className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline">
+                          <button
+                            onClick={() => void openTransferProof(selectedRequest.id)}
+                            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                          >
                             <ExternalLink className="size-4" />
                             ดูหลักฐานการโอน
                           </button>
-                        ) : <p className="text-sm font-medium text-muted-foreground">ยังไม่มีไฟล์แนบ</p>}
+                        ) : (
+                          <p className="text-sm font-medium text-muted-foreground">ยังไม่มีไฟล์แนบ</p>
+                        )}
                       </div>
                     </div>
                   </section>
@@ -587,7 +691,10 @@ export default function TransactionsPage() {
               <Label htmlFor="transfer-proof">ไฟล์หลักฐาน</Label>
               <label
                 htmlFor="transfer-proof"
-                onDragEnter={(event) => { event.preventDefault(); setIsDraggingProof(true) }}
+                onDragEnter={(event) => {
+                  event.preventDefault()
+                  setIsDraggingProof(true)
+                }}
                 onDragOver={(event) => event.preventDefault()}
                 onDragLeave={() => setIsDraggingProof(false)}
                 onDrop={(event) => {
@@ -606,13 +713,17 @@ export default function TransactionsPage() {
                 />
                 {transferProofName ? (
                   <>
-                    <div className="rounded-full bg-primary/15 p-3 text-primary"><FileText className="size-6" /></div>
+                    <div className="rounded-full bg-primary/15 p-3 text-primary">
+                      <FileText className="size-6" />
+                    </div>
                     <p className="mt-3 max-w-full truncate font-medium">{transferProofName}</p>
                     <p className="mt-1 text-xs text-muted-foreground">กดหรือลากไฟล์ใหม่เพื่อแทนที่</p>
                   </>
                 ) : (
                   <>
-                    <div className="rounded-full bg-primary/15 p-3 text-primary"><UploadCloud className="size-6" /></div>
+                    <div className="rounded-full bg-primary/15 p-3 text-primary">
+                      <UploadCloud className="size-6" />
+                    </div>
                     <p className="mt-3 font-medium">ลากไฟล์มาวางที่นี่</p>
                     <p className="mt-1 text-sm text-muted-foreground">หรือกดเพื่อเลือกไฟล์</p>
                   </>
@@ -622,7 +733,9 @@ export default function TransactionsPage() {
               {transferProofError && <p className="text-xs text-destructive">{transferProofError}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="approval-note">หมายเหตุสำหรับการอนุมัติ <span className="text-muted-foreground">(ไม่บังคับ)</span></Label>
+              <Label htmlFor="approval-note">
+                หมายเหตุสำหรับการอนุมัติ <span className="text-muted-foreground">(ไม่บังคับ)</span>
+              </Label>
               <Textarea
                 id="approval-note"
                 value={approvalNote}
@@ -668,8 +781,18 @@ export default function TransactionsPage() {
               <p className="text-xs text-muted-foreground">หมายเหตุนี้จะแสดงในรายละเอียดคำขอ</p>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setRejectionRequest(null); setRejectionNote('') }}>ยกเลิก</Button>
-              <Button variant="destructive" onClick={rejectRequest} disabled={!rejectionNote.trim()}>ยืนยันการปฏิเสธ</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setRejectionRequest(null)
+                  setRejectionNote('')
+                }}
+              >
+                ยกเลิก
+              </Button>
+              <Button variant="destructive" onClick={rejectRequest} disabled={!rejectionNote.trim()}>
+                ยืนยันการปฏิเสธ
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

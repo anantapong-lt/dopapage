@@ -99,6 +99,8 @@ export async function findPublicChapterForReading(
       (
         ${hasAdminAccess}
         OR
+        COALESCE(stories.creator_user_id = ${currentUserId}::UUID, FALSE)
+        OR
         chapters.is_free
         OR EXISTS (
           SELECT 1
@@ -443,6 +445,8 @@ export async function findPublicReaderChapters(
       (
         ${hasAdminAccess}
         OR
+        COALESCE(stories.creator_user_id = ${currentUserId}::UUID, FALSE)
+        OR
         chapters.is_free
         OR EXISTS (
           SELECT 1
@@ -452,6 +456,7 @@ export async function findPublicReaderChapters(
         )
       ) AS can_read
     FROM chapters
+    INNER JOIN stories ON stories.id = chapters.story_id
     WHERE chapters.story_id = ${storyId}
       AND (
         ${hasAdminAccess}
@@ -890,6 +895,8 @@ export async function findPublicChaptersBySlug(
         COALESCE(stories.creator_user_id = ${currentUserId}::UUID, FALSE) AS is_owner,
         (
           ${hasAdminAccess}
+          OR
+          COALESCE(stories.creator_user_id = ${currentUserId}::UUID, FALSE)
           OR
           chapters.is_free
           OR EXISTS (

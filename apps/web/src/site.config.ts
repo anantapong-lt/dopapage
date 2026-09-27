@@ -13,7 +13,7 @@ const siteUrl =
 
 export const SITE_CONFIG = {
   type: 'novel' as 'novel' | 'manga',
-  name: 'DopaHub',
+  name: 'Dopapage',
   tagline: 'อ่านนิยายออนไลน์ฟรี',
   description: 'แหล่งรวมนิยายออนไลน์และการ์ตูนคุณภาพ อัปเดตทุกวัน',
   apiUrl: resolveApiUrl(),

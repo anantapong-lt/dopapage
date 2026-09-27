@@ -26,7 +26,7 @@ import type { ChapterStatus, WriterChaptersResponse } from '@/interface/writer-c
 import { formatChapterNumber } from '@/utils/chapter-number.util'
 
 const PAGE_LIMIT = 10
-type ChapterSort = 'chapter_desc' | 'chapter_asc' | 'created_desc' | 'created_asc'
+type ChapterSort = 'chapter_desc' | 'chapter_asc' | 'sales_desc' | 'sales_asc' | 'created_desc' | 'created_asc'
 type BulkAction = 'price' | 'status' | 'schedule'
 
 const statusOptions: { value: ChapterStatus; label: string }[] = [
@@ -85,7 +85,7 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
   const { accessToken } = useAuth()
   const search = searchParams.get('search')?.trim() ?? ''
   const sortParam = searchParams.get('sort')
-  const sort: ChapterSort = sortParam === 'chapter_asc' || sortParam === 'created_desc' || sortParam === 'created_asc'
+  const sort: ChapterSort = sortParam === 'chapter_asc' || sortParam === 'sales_desc' || sortParam === 'sales_asc' || sortParam === 'created_desc' || sortParam === 'created_asc'
     ? sortParam
     : 'chapter_desc'
   const requestedPage = Number(searchParams.get('page') ?? 1)
@@ -263,6 +263,8 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
           <SelectContent>
             <SelectItem value="chapter_desc">เลขตอนมากไปน้อย</SelectItem>
             <SelectItem value="chapter_asc">เลขตอนน้อยไปมาก</SelectItem>
+            <SelectItem value="sales_desc">ยอดขายมากไปน้อย</SelectItem>
+            <SelectItem value="sales_asc">ยอดขายน้อยไปมาก</SelectItem>
             <SelectItem value="created_desc">สร้างล่าสุด</SelectItem>
             <SelectItem value="created_asc">สร้างเก่าสุด</SelectItem>
           </SelectContent>
@@ -442,7 +444,10 @@ export function WriterChapters({ contentId }: WriterChaptersProps) {
                     )}
                   </TableCell>
                   <TableCell className="px-4 text-right tabular-nums">
-                    {new Intl.NumberFormat('th-TH').format(Number(chapter.sales_count))}
+                    <span className="inline-flex items-center gap-1">
+                      <GiTwoCoins className="size-4 text-orange-500" />
+                      {formatPrice(chapter.sales_amount)}
+                    </span>
                   </TableCell>
                   <TableCell className="px-4">
                     <Badge

@@ -141,7 +141,7 @@ export async function queryWriterChapters(
     db<WriterChapter[]>`
       SELECT chapters.id, stories.slug AS story_slug, chapters.chapter_number::TEXT, chapters.title,
         chapters.price::TEXT, chapters.is_free,
-        COUNT(chapter_purchases.id)::TEXT AS sales_count, chapters.status,
+        ROUND(COALESCE(SUM(chapter_purchases.price), 0), 2)::TEXT AS sales_amount, chapters.status,
         chapters.published_at, chapters.created_at
       FROM chapters
       INNER JOIN stories ON stories.id = chapters.story_id
@@ -155,6 +155,8 @@ export async function queryWriterChapters(
       ORDER BY
         CASE WHEN ${sort} = 'chapter_asc' THEN chapters.chapter_number END ASC,
         CASE WHEN ${sort} = 'chapter_desc' THEN chapters.chapter_number END DESC,
+        CASE WHEN ${sort} = 'sales_asc' THEN COALESCE(SUM(chapter_purchases.price), 0) END ASC,
+        CASE WHEN ${sort} = 'sales_desc' THEN COALESCE(SUM(chapter_purchases.price), 0) END DESC,
         CASE WHEN ${sort} = 'created_asc' THEN chapters.created_at END ASC,
         CASE WHEN ${sort} = 'created_desc' THEN chapters.created_at END DESC,
         chapters.id DESC

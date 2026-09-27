@@ -47,7 +47,7 @@ export interface GetWriterChaptersInput {
   limit: number
 }
 
-export type WriterChapterSort = 'chapter_desc' | 'chapter_asc' | 'created_desc' | 'created_asc'
+export type WriterChapterSort = 'chapter_desc' | 'chapter_asc' | 'sales_desc' | 'sales_asc' | 'created_desc' | 'created_asc'
 
 export interface WriterChapter {
   id: string
@@ -56,7 +56,7 @@ export interface WriterChapter {
   title: string
   price: string
   is_free: boolean
-  sales_count: string
+  sales_amount: string
   status: ChapterStatus
   published_at: Date | null
   created_at: Date

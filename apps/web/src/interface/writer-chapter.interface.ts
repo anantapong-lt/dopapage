@@ -33,7 +33,7 @@ export interface WriterChapter {
   title: string
   price: string
   is_free: boolean
-  sales_count: string
+  sales_amount: string
   status: ChapterStatus
   published_at: string | null
   created_at: string

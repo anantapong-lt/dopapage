@@ -93,7 +93,7 @@ function mapRequest(row: WriterWithdrawalRow) {
 const requestSelect = `id, requested_amount::TEXT, commission_percent::TEXT, commission_amount::TEXT, net_amount::TEXT, bank_code, account_number, requested_at, status, approval_note, rejection_reason, approved_at, paid_at, rejected_at`
 
 export async function getWriterWithdrawals(userId: string, page: number, limit: number) {
-  const [{ withdrawal, features }, [account], [writer], requests, [count]] = await Promise.all([
+  const [{ withdrawal, features }, [account], [writer], [sales], requests, [count]] = await Promise.all([
     getWithdrawalSettings(),
     db<WriterBankAccount[]>`
       SELECT id, account_holder_first_name, account_holder_last_name, bank_code,
@@ -103,6 +103,11 @@ export async function getWriterWithdrawals(userId: string, page: number, limit: 
       LIMIT 1
     `,
     db<{ balance: string }[]>`SELECT balance::TEXT FROM users WHERE id = ${userId}`,
+    db<{ total_sales: string }[]>`
+      SELECT ROUND(COALESCE(SUM(price), 0), 2)::TEXT AS total_sales
+      FROM chapter_purchases
+      WHERE writer_user_id = ${userId}
+    `,
     db<WriterWithdrawalRow[]>`
       SELECT ${db.unsafe(requestSelect)}
       FROM withdrawal_requests
@@ -115,6 +120,7 @@ export async function getWriterWithdrawals(userId: string, page: number, limit: 
 
   return {
     balance: writer?.balance ?? '0.00',
+    total_sales: sales?.total_sales ?? '0.00',
     commission_percent: withdrawal.commission_percent,
     withdrawals_enabled: features.withdrawals,
     bank_account: account ?? null,

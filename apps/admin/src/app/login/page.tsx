@@ -47,7 +47,7 @@ export default function AdminLoginPage() {
             <ShieldCheck className="size-5" />
           </div>
           <CardTitle className="text-2xl">เข้าสู่ระบบ</CardTitle>
-          <CardDescription>DopaHub Admin Control Center</CardDescription>
+          <CardDescription>Dopapage Admin Control Center</CardDescription>
         </CardHeader>
         <CardContent className="px-6 pb-8">
           <form className="grid gap-4" onSubmit={handleSubmit} aria-busy={isSubmitting || status === 'loading'}>
@@ -61,7 +61,7 @@ export default function AdminLoginPage() {
                   type="email"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@dopahub.com"
+                  placeholder="name@Dopapage.com"
                   autoComplete="email"
                   required
                 />

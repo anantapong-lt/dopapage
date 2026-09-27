@@ -2,21 +2,68 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { Banknote, BarChart3, BookOpen, ClipboardCheck, FileText, LayoutTemplate, LogOut, PenSquare, ReceiptText, ShieldCheck, UserCog, Users, WalletCards } from 'lucide-react'
+import {
+  Banknote,
+  BarChart3,
+  BookOpen,
+  ClipboardCheck,
+  FileText,
+  LayoutTemplate,
+  LogOut,
+  PenSquare,
+  ReceiptText,
+  ShieldCheck,
+  UserCog,
+  Users,
+  WalletCards,
+} from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { NotificationBell } from '@readji/shared/src/notification-bell'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Button } from '@/components/ui/button'
-import { Sidebar as SidebarPrimitive, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from '@/components/ui/sidebar'
+import {
+  Sidebar as SidebarPrimitive,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '@/components/ui/sidebar'
 
 const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
 
 const navigation = [
   { label: 'ภาพรวม', items: [{ href: '/dashboard', label: 'Dashboard', icon: BarChart3 }] },
   { label: 'จัดการเนื้อหา', items: [{ href: '/works', label: 'ผลงานทั้งหมด', icon: BookOpen }] },
-  { label: 'จัดการผู้ใช้งาน', items: [{ href: '/users', label: 'ผู้ใช้งาน', icon: Users }, { href: '/writers', label: 'นักเขียน', icon: PenSquare }, { href: '/admin-account', label: 'บัญชีแอดมิน', icon: UserCog }, { href: '/writer-applications', label: 'คำขอเป็นนักเขียน', icon: ClipboardCheck }] },
-  { label: 'การเงิน', items: [{ href: '/transactions', label: 'คำขอถอน', icon: Banknote }, { href: '/topups', label: 'รายการเติมเงิน', icon: WalletCards }, { href: '/purchases', label: 'ประวัติการซื้อ', icon: ReceiptText }] },
-  { label: 'ระบบ', items: [{ href: '/site', label: 'ตั้งค่าเว็บไซต์', icon: LayoutTemplate }, { href: '/agreements', label: 'จัดการข้อตกลงการใช้งาน', icon: FileText }] },
+  {
+    label: 'จัดการผู้ใช้งาน',
+    items: [
+      { href: '/users', label: 'ผู้ใช้งาน', icon: Users },
+      { href: '/writers', label: 'นักเขียน', icon: PenSquare },
+      { href: '/admin-account', label: 'บัญชีแอดมิน', icon: UserCog },
+      { href: '/writer-applications', label: 'คำขอเป็นนักเขียน', icon: ClipboardCheck },
+    ],
+  },
+  {
+    label: 'การเงิน',
+    items: [
+      { href: '/transactions', label: 'คำขอถอน', icon: Banknote },
+      { href: '/topups', label: 'รายการเติมเงิน', icon: WalletCards },
+      { href: '/purchases', label: 'ประวัติการซื้อ', icon: ReceiptText },
+    ],
+  },
+  {
+    label: 'ระบบ',
+    items: [
+      { href: '/site', label: 'ตั้งค่าเว็บไซต์', icon: LayoutTemplate },
+      { href: '/agreements', label: 'จัดการข้อตกลงการใช้งาน', icon: FileText },
+    ],
+  },
 ] as const
 
 export function Sidebar() {
@@ -27,33 +74,72 @@ export function Sidebar() {
   const [notificationAnchor, setNotificationAnchor] = useState<HTMLDivElement | null>(null)
   const initials = user?.display_name.trim().slice(0, 1).toUpperCase() ?? 'A'
 
-  return <SidebarPrimitive>
-    <SidebarHeader><SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg"><div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground"><ShieldCheck className="size-4" /></div><div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-semibold">DopaHub Admin</span><span className="truncate text-xs text-sidebar-foreground/70">CONTROL CENTER</span></div></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
-    <SidebarContent>{navigation.map(({ label, items }) => <SidebarGroup key={label}><SidebarGroupLabel>{label}</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{items.map(({ href, label: itemLabel, icon: Icon }) => {
-      const isActive = pathname === href
-      return <SidebarMenuItem key={href}><SidebarMenuButton isActive={isActive} render={<Link href={href} />} className={isActive ? '!bg-primary !text-white hover:!bg-primary/90 [&_svg]:!text-white' : ''}><Icon />{itemLabel}</SidebarMenuButton></SidebarMenuItem>
-    })}</SidebarMenu></SidebarGroupContent></SidebarGroup>)}</SidebarContent>
-    <SidebarFooter ref={setNotificationAnchor} className="border-t p-3">
-      <div className="flex items-center gap-2">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">{initials}</div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">{user?.display_name ?? 'Super Admin'}</p>
-          <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
-        </div>
-        <NotificationBell
-          apiUrl={apiUrl}
-          accessToken={accessToken}
-          presentation={isMobile ? 'bottom-sheet' : 'popover'}
-          side={isMobile ? 'top' : 'right'}
-          align="end"
-          anchorElement={isMobile ? undefined : notificationAnchor}
-          triggerClassName="relative flex size-9 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          onNotificationClick={(notification) => {
-            setOpenMobile(false)
-            router.push(notification.target_url ?? '/transactions')
-          }}
-        />
-        {/*
+  return (
+    <SidebarPrimitive>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg">
+              <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <ShieldCheck className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-semibold">Dopapage Admin</span>
+                <span className="truncate text-xs text-sidebar-foreground/70">CONTROL CENTER</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        {navigation.map(({ label, items }) => (
+          <SidebarGroup key={label}>
+            <SidebarGroupLabel>{label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {items.map(({ href, label: itemLabel, icon: Icon }) => {
+                  const isActive = pathname === href
+                  return (
+                    <SidebarMenuItem key={href}>
+                      <SidebarMenuButton
+                        isActive={isActive}
+                        render={<Link href={href} />}
+                        className={isActive ? '!bg-primary !text-white hover:!bg-primary/90 [&_svg]:!text-white' : ''}
+                      >
+                        <Icon />
+                        {itemLabel}
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter ref={setNotificationAnchor} className="border-t p-3">
+        <div className="flex items-center gap-2">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{user?.display_name ?? 'Super Admin'}</p>
+            <p className="truncate text-xs text-sidebar-foreground/60">{user?.email}</p>
+          </div>
+          <NotificationBell
+            apiUrl={apiUrl}
+            accessToken={accessToken}
+            presentation={isMobile ? 'bottom-sheet' : 'popover'}
+            side={isMobile ? 'top' : 'right'}
+            align="end"
+            anchorElement={isMobile ? undefined : notificationAnchor}
+            triggerClassName="relative flex size-9 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            onNotificationClick={(notification) => {
+              setOpenMobile(false)
+              router.push(notification.target_url ?? '/transactions')
+            }}
+          />
+          {/*
         <Popover open={isNotificationOpen} onOpenChange={setIsNotificationOpen}>
           <PopoverTrigger asChild>
             <button type="button" className="relative flex size-9 shrink-0 items-center justify-center rounded-md text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" aria-label={unreadCount > 0 ? `การแจ้งเตือนใหม่ ${unreadCount} รายการ` : 'การแจ้งเตือน'}>
@@ -76,8 +162,18 @@ export function Sidebar() {
           </PopoverContent>
         </Popover>
         */}
-        <Button size="icon" variant="ghost" className="size-9 shrink-0" onClick={() => void logout()} title="ออกจากระบบ" aria-label="ออกจากระบบ"><LogOut className="size-4" /></Button>
-      </div>
-    </SidebarFooter>
-  </SidebarPrimitive>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-9 shrink-0"
+            onClick={() => void logout()}
+            title="ออกจากระบบ"
+            aria-label="ออกจากระบบ"
+          >
+            <LogOut className="size-4" />
+          </Button>
+        </div>
+      </SidebarFooter>
+    </SidebarPrimitive>
+  )
 }

@@ -6,7 +6,7 @@ export function AuthCard({ heading, children }: { heading: string; children: Rea
       <Link href="/" className="flex items-center justify-center">
         <span
           role="img"
-          aria-label="DopaHub"
+          aria-label="Dopapage"
           className="aspect-[1147/925] h-32 bg-primary [mask-image:url(/readji-logo-full.png)] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain] [-webkit-mask-image:url(/readji-logo-full.png)] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain]"
         />
       </Link>

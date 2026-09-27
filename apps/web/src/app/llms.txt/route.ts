@@ -5,7 +5,7 @@ export function GET() {
 
 > ${SITE_CONFIG.description}
 
-DopaHub is a Thai-language platform for discovering online novels and comics.
+Dopapage is a Thai-language platform for discovering online novels and comics.
 Public story detail pages are server-rendered and contain the canonical title, author, genres, synopsis, cover, age rating, and readership count.
 
 ## Primary resources

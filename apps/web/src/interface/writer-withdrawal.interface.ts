@@ -19,6 +19,7 @@ export interface WriterWithdrawalRequest {
 
 export interface WriterWithdrawalsResponse {
   balance: string
+  total_sales: string
   commission_percent: string
   withdrawals_enabled: boolean
   bank_account: WriterBankAccount | null
