@@ -1,7 +1,7 @@
-import { S3Client } from 'bun'
 import { Buffer } from 'node:buffer'
 import sharp from 'sharp'
 import { env } from '../../../config/env'
+import { createPublicAssetUrl, deleteAsset, isLocalAssetKey, uploadAsset } from '../../assets/local-asset.service'
 
 const SUPPORTED_WRITER_COVER_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const OPTIMIZED_WRITER_COVER_TYPE = 'image/webp'
@@ -31,25 +31,6 @@ export async function createWriterCoverBlurDataUrl(input: Buffer): Promise<strin
     .toBuffer()
 
   return `data:${OPTIMIZED_WRITER_COVER_TYPE};base64,${blurOutput.toString('base64')}`
-}
-
-function createR2Client() {
-  if (
-    !env.R2_ACCOUNT_ID
-    || !env.R2_ACCESS_KEY_ID
-    || !env.R2_SECRET_ACCESS_KEY
-    || !env.R2_BUCKET_NAME
-    || !env.R2_PUBLIC_URL
-  ) {
-    throw new Error('R2 configuration is incomplete')
-  }
-
-  return new S3Client({
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucket: env.R2_BUCKET_NAME,
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  })
 }
 
 function parseIntegerOption(value: number | string | undefined): number | undefined {
@@ -121,14 +102,13 @@ export async function uploadPublicCover(
 ) {
   const optimizedCover = await optimizeWriterCover(file, options)
 
-  const key = `${keyPrefix}/${crypto.randomUUID()}.${OPTIMIZED_WRITER_COVER_EXTENSION}`
-  const r2 = createR2Client()
-
-  await r2.write(key, optimizedCover.body, { type: optimizedCover.contentType })
+  const key = await uploadAsset(`${keyPrefix}/${crypto.randomUUID()}.${OPTIMIZED_WRITER_COVER_EXTENSION}`, optimizedCover.body, {
+    bucket: 'public', contentType: optimizedCover.contentType,
+  })
 
   return {
     key,
-    cover_url: `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`,
+    cover_url: createPublicAssetUrl(key),
     cover_blur_data_url: optimizedCover.blurDataUrl,
   }
 }
@@ -141,10 +121,22 @@ export async function uploadWriterCover(
 }
 
 export async function deleteWriterCover(key: string): Promise<void> {
-  await createR2Client().delete(key)
+  await deleteAsset(key, 'public')
 }
 
 export async function deleteWriterCoverByUrl(coverUrl: string): Promise<void> {
+  const localUrl = new URL(`${env.API_ORIGIN.replace(/\/$/, '')}/assets/local`)
+  let url: URL
+  try {
+    url = new URL(coverUrl)
+  } catch {
+    return
+  }
+  if (url.origin === localUrl.origin && url.pathname === localUrl.pathname) {
+    const key = url.searchParams.get('key')
+    if (key && isLocalAssetKey(key)) await deleteWriterCover(key)
+    return
+  }
   const publicUrl = env.R2_PUBLIC_URL.replace(/\/$/, '')
   const prefix = `${publicUrl}/`
   if (!publicUrl || !coverUrl.startsWith(prefix)) return

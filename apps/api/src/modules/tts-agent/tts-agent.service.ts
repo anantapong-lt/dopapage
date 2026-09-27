@@ -1,8 +1,7 @@
-import { S3Client } from 'bun'
 import { createHash } from 'node:crypto'
 import { db } from '../../db'
-import { env } from '../../config/env'
 import { TTS_JOB_STATUS, type TtsJobStatus } from '../../models/tts-job.model'
+import { createAssetUploadUrl, createPublicAssetUrl } from '../assets/local-asset.service'
 
 const LEASE_SECONDS = 30 * 60
 
@@ -19,18 +18,6 @@ function sourceHash(content: string) {
 
 function plainText(html: string) {
   return html.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/&[a-zA-Z0-9#]+;/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-function r2() {
-  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_BUCKET_NAME) {
-    throw new TtsAgentError('TTS storage is not configured', 503)
-  }
-  return new S3Client({
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucket: env.R2_BUCKET_NAME,
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  })
 }
 
 export async function listWriterTtsStories(userId: string) {
@@ -183,8 +170,9 @@ export async function createTtsUploadUrl(userId: string, jobId: string, workerId
   if (!job) throw new TtsAgentError('Job was not claimed by this agent or its lease expired', 409)
   // Match manga chapter storage; use a stable, unique filename because both
   // upload-url and completion resolve this key independently.
-  const key = `stories/chapters/${job.story_id}/${Number(job.chapter_number)}/${job.id}-${job.attempt_count}.mp3`
-  return { audio_key: key, upload_url: r2().presign(key, { expiresIn: 15 * 60, method: 'PUT' }) }
+  const storageKey = `stories/chapters/${job.story_id}/${Number(job.chapter_number)}/${job.id}-${job.attempt_count}.mp3`
+  const upload = createAssetUploadUrl(storageKey, 'public')
+  return { audio_key: upload.key, upload_url: upload.uploadUrl }
 }
 
 export async function completeTtsJob(userId: string, jobId: string, workerId: string, durationSeconds: number) {
@@ -205,7 +193,7 @@ export async function completeTtsJob(userId: string, jobId: string, workerId: st
     throw new TtsAgentError('Chapter content changed during rendering', 409)
   }
   const upload = await createTtsUploadUrl(userId, jobId, workerId)
-  const audioUrl = env.R2_PUBLIC_URL ? `${env.R2_PUBLIC_URL.replace(/\/$/, '')}/${upload.audio_key}` : null
+  const audioUrl = createPublicAssetUrl(upload.audio_key)
   const rows = await db`
     UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
       duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), completed_at = NOW(),

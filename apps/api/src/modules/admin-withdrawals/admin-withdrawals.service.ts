@@ -1,6 +1,5 @@
-import { S3Client } from 'bun'
 import { db } from '../../db'
-import { env } from '../../config/env'
+import { createPrivateAssetUrl, uploadAsset } from '../assets/local-asset.service'
 import { NOTIFICATION_TYPE } from '../../models/notification.model'
 import { WITHDRAWAL_STATUS, type WithdrawalStatus } from '../../models/withdrawal.model'
 
@@ -22,16 +21,6 @@ interface WithdrawalRow {
   reviewed_by: string | null
 }
 
-function r2() {
-  if (!env.R2_ACCOUNT_ID || !env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_TRANSFER_PROOF_BUCKET_NAME)
-    throw new Error('R2 transfer-proof configuration is incomplete')
-  return new S3Client({
-    accessKeyId: env.R2_ACCESS_KEY_ID,
-    secretAccessKey: env.R2_SECRET_ACCESS_KEY,
-    bucket: env.R2_TRANSFER_PROOF_BUCKET_NAME,
-    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  })
-}
 function map(row: WithdrawalRow) {
   return {
     id: row.id,
@@ -62,9 +51,9 @@ export async function findAdminWithdrawals(selectedStatus: WithdrawalStatus | nu
 
 async function uploadProof(file: File, requestId: string) {
   const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg'
-  const key = `withdrawal-proofs/${requestId}/${crypto.randomUUID()}.${extension}`
-  await r2().write(key, new Blob([await file.arrayBuffer()], { type: file.type }), { type: file.type })
-  return key
+  return uploadAsset(`withdrawal-proofs/${requestId}/${crypto.randomUUID()}.${extension}`, new Blob([await file.arrayBuffer()], { type: file.type }), {
+    bucket: 'transfer-proof', contentType: file.type,
+  })
 }
 
 export async function processAdminWithdrawal(
@@ -129,5 +118,6 @@ export async function getWithdrawalProofUrl(id: string) {
   const [row] = await db<
     { transfer_proof_key: string | null }[]
   >`SELECT transfer_proof_key FROM withdrawal_requests WHERE id = ${id}`
-  return row?.transfer_proof_key ? r2().presign(row.transfer_proof_key, { expiresIn: 5 * 60, method: 'GET' }) : null
+  if (!row?.transfer_proof_key) return null
+  return createPrivateAssetUrl(row.transfer_proof_key, 'transfer-proof')
 }

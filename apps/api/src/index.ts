@@ -27,6 +27,7 @@ import { writerChapterPageRoutes } from './modules/writer/chapter/writer-chapter
 import { writerBankAccountRoutes } from './modules/writer-bank-account/writer-bank-account.routes'
 import { writerWithdrawalRoutes } from './modules/writer-withdrawals/writer-withdrawals.routes'
 import { ttsAgentRoutes } from './modules/tts-agent/tts-agent.routes'
+import { localAssetRoutes } from './modules/assets/local-asset.routes'
 
 const CHAPTER_PUBLISH_INTERVAL_MS = 60_000
 
@@ -69,6 +70,7 @@ const app = new Elysia()
   .use(writerBankAccountRoutes)
   .use(writerWithdrawalRoutes)
   .use(ttsAgentRoutes)
+  .use(localAssetRoutes)
   .use(writerRoutes)
   .use(writerChapterPageRoutes)
 

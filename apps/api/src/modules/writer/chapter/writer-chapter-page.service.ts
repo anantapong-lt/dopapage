@@ -1,10 +1,10 @@
 import { S3Client } from 'bun'
 import { Buffer } from 'node:buffer'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { mkdir, rm } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import sharp from 'sharp'
 import { env } from '../../../config/env'
+import { deleteAsset, uploadAsset } from '../../assets/local-asset.service'
 
 const PAGE_WIDTH = 2400
 const PAGE_QUALITY = 85
@@ -62,17 +62,7 @@ export async function uploadWriterChapterPage(
     .webp({ quality: PAGE_QUALITY })
     .toBuffer({ resolveWithObject: true })
   const storageKey = `stories/chapters/${storyId}/${chapterNumber}/${crypto.randomUUID()}.webp`
-  const key = env.LOCAL_UPLOAD ? `${LOCAL_KEY_PREFIX}${storageKey}` : storageKey
-
-  if (env.LOCAL_UPLOAD) {
-    const path = localPagePath(key)
-    await mkdir(dirname(path), { recursive: true })
-    await Bun.write(path, data)
-  } else {
-    await createR2Client().write(key, new Blob([data], { type: 'image/webp' }), {
-      type: 'image/webp',
-    })
-  }
+  const key = await uploadAsset(storageKey, data, { bucket: 'manga', contentType: 'image/webp' })
 
   return {
     key,
@@ -97,12 +87,7 @@ export function createWriterChapterPageSignedUrl(key: string): string {
 }
 
 export async function deleteWriterChapterPage(key: string): Promise<void> {
-  if (key.startsWith(LOCAL_KEY_PREFIX)) {
-    await rm(localPagePath(key), { force: true })
-    return
-  }
-
-  await createR2Client().delete(key)
+  await deleteAsset(key, 'manga')
 }
 
 export async function findLocalWriterChapterPage(key: string, expires: string, signature: string) {
