@@ -53,7 +53,7 @@ export function ChapterImport({ contentId, isManga = false, onCancel, onBusyChan
   const [message, setMessage] = useState('')
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>({})
   const [preview, setPreview] = useState<ImportedChapter | null>(null)
-  const [price, setPrice] = useState('0.00')
+  const [price, setPrice] = useState('')
   const [status, setStatus] = useState<ChapterStatus | ''>('')
   const [date, setDate] = useState('')
   const errors = chapterImportErrors(rows, isManga)
@@ -241,8 +241,8 @@ export function ChapterImport({ contentId, isManga = false, onCancel, onBusyChan
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3">
             {hasErrors && <p className="mr-auto text-xs text-destructive">แก้ไขหรือลบตอนที่ไฮไลต์ก่อนสร้าง</p>}
-            <Button type="button" disabled={!selected.size || !/^\d+(\.\d{1,2})?$/.test(price) || Number(price) > 9_999_999_999.99 || (status === 'scheduled' && !date)} onClick={() => apply({
-              price: formatPrice(price),
+            <Button type="button" disabled={!selected.size || Boolean(price && (!/^\d+(\.\d{1,2})?$/.test(price) || Number(price) > 9_999_999_999.99)) || (status === 'scheduled' && !date)} onClick={() => apply({
+              price: price ? formatPrice(price) : '',
               ...(status ? { status } : {}),
               ...(status === 'scheduled' ? { published_at: date } : {}),
             })}>บันทึก</Button>

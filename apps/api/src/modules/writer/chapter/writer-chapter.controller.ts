@@ -34,11 +34,11 @@ export async function importWriterChaptersResponse(
       try {
         if (!/^\d+(\.\d)?$/.test(row.chapter_number)) throw new Error('กรุณาระบุเลขตอนที่ถูกต้อง ทศนิยมไม่เกิน 1 ตำแหน่ง')
         if ((counts.get(Number(row.chapter_number)) ?? 0) > 1) throw new Error('เลขตอนซ้ำกับรายการอื่นที่นำเข้า')
-        if (!/^\d+(\.\d{1,2})?$/.test(row.price)) throw new Error('กรุณาระบุราคาที่ถูกต้อง ทศนิยมไม่เกิน 2 ตำแหน่ง')
+        if (row.price && !/^\d+(\.\d{1,2})?$/.test(row.price)) throw new Error('กรุณาระบุราคาที่ถูกต้อง ทศนิยมไม่เกิน 2 ตำแหน่ง')
         if (row.content.includes('\u0000')) throw new Error('เนื้อหามีอักขระที่ไม่รองรับ')
         const content = row.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           .replace(/\r\n?/g, '\n').split('\n').map((line) => `<p>${line || '<br>'}</p>`).join('')
-        inputs.push(normalizeChapterInput(type, { ...row, chapter_number: Number(row.chapter_number), price: Number(row.price), content }))
+        inputs.push(normalizeChapterInput(type, { ...row, chapter_number: Number(row.chapter_number), price: row.price ? Number(row.price) : 0, content }))
       } catch (error) {
         errors.push({ index, message: error instanceof Error ? error.message : 'ข้อมูลตอนไม่ถูกต้อง' })
       }
@@ -110,9 +110,9 @@ export async function importWriterMangaChaptersResponse(
       try {
         if (!/^\d+(\.\d)?$/.test(row.chapter_number)) throw new Error('กรุณาระบุเลขตอนที่ถูกต้อง ทศนิยมไม่เกิน 1 ตำแหน่ง')
         if ((counts.get(Number(row.chapter_number)) ?? 0) > 1) throw new Error('เลขตอนซ้ำกับรายการอื่นที่นำเข้า')
-        if (!/^\d+(\.\d{1,2})?$/.test(row.price)) throw new Error('กรุณาระบุราคาที่ถูกต้อง ทศนิยมไม่เกิน 2 ตำแหน่ง')
+        if (row.price && !/^\d+(\.\d{1,2})?$/.test(row.price)) throw new Error('กรุณาระบุราคาที่ถูกต้อง ทศนิยมไม่เกิน 2 ตำแหน่ง')
         inputs.push(normalizeChapterInput(type, {
-          title: row.title, chapter_number: Number(row.chapter_number), price: Number(row.price),
+          title: row.title, chapter_number: Number(row.chapter_number), price: row.price ? Number(row.price) : 0,
           status: row.status, published_at: row.published_at,
         }))
       } catch (error) {
@@ -330,7 +330,7 @@ function normalizeChapterInput(
 ): ChapterWriteInput {
   const title = input.title.trim()
   const chapterNumber = Number(input.chapter_number)
-  const price = Number(input.price)
+  const price = input.price ?? 0
   if (storyType === STORY_TYPE.NOVEL) validateNovelImages(input.content?.trim() ?? '')
   const content = storyType === STORY_TYPE.NOVEL
     ? sanitizeNovelHtml(input.content?.trim() ?? '')

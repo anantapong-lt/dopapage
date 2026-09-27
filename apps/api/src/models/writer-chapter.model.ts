@@ -3,7 +3,7 @@ import type { ChapterStatus, StoryType } from './story.model'
 export interface CreateWriterChapterInput {
   title: string
   chapter_number: number
-  price: number
+  price?: number
   status: ChapterStatus
   published_at?: string
   content?: string

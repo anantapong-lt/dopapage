@@ -3,6 +3,14 @@ import type { ImportedChapter } from '@/interface/writer-chapter-import.interfac
 
 export const CHAPTER_IMPORT_MAX_BYTES = 100 * 1024 * 1024
 
+function chapterNameParts(value: string): { chapterNumber: string; title: string } {
+  const match = /^\s*(?:ตอนที่\s*)?(\d+(?:\.\d+)?)(?:\s+(.+?))?\s*$/.exec(value)
+  return {
+    chapterNumber: match?.[1] ?? '',
+    title: match?.[2]?.trim() ?? '',
+  }
+}
+
 export async function readChapterZip(file: File): Promise<ImportedChapter[]> {
   if (!/\.zip$/i.test(file.name)) throw new Error('กรุณาเลือกไฟล์ ZIP')
   if (file.size > CHAPTER_IMPORT_MAX_BYTES) throw new Error('ไฟล์ ZIP ต้องมีขนาดไม่เกิน 100MB')
@@ -13,11 +21,11 @@ export async function readChapterZip(file: File): Promise<ImportedChapter[]> {
     if (entry.name.endsWith('/') || entry.name.startsWith('__MACOSX/') || entry.name.split('/').pop()?.startsWith('._')) return
     if (rows.length >= 500) throw new Error('นำเข้าได้สูงสุด 500 ตอน')
     const filename = entry.name.split(/[\\/]/).pop() ?? entry.name
-    const title = filename.replace(/\.txt$/i, '')
+    const { chapterNumber, title } = chapterNameParts(filename.replace(/\.txt$/i, ''))
     const row: ImportedChapter = {
       id: crypto.randomUUID(), filename, title,
-      chapter_number: title.match(/\d+(?:\.\d+)?/)?.[0] ?? '',
-      price: '0.00', status: 'published', published_at: '', content: '',
+      chapter_number: chapterNumber,
+      price: '', status: 'published', published_at: '', content: '',
     }
     rows.push(row)
     if (!/\.txt$/i.test(filename)) {
@@ -74,10 +82,11 @@ const MANGA_IMAGE_TYPES: Record<string, string> = {
 }
 
 function mangaZipRow(title: string, images: File[]): ImportedChapter {
+  const { chapterNumber, title: chapterTitle } = chapterNameParts(title)
   return {
-    id: crypto.randomUUID(), filename: title, title,
-    chapter_number: title.match(/\d+(?:\.\d+)?/)?.[0] ?? '',
-    price: '0.00', status: 'published', published_at: '', content: '', images,
+    id: crypto.randomUUID(), filename: title, title: chapterTitle,
+    chapter_number: chapterNumber,
+    price: '', status: 'published', published_at: '', content: '', images,
   }
 }
 
@@ -156,10 +165,10 @@ export function chapterImportErrors(rows: ImportedChapter[], isManga = false): R
   return Object.fromEntries(rows.map((row) => {
     const errors: string[] = []
     if (row.readError) errors.push(row.readError)
-    if (!row.title.trim() || row.title.length > 255) errors.push('ชื่อตอนต้องมี 1–255 ตัวอักษร')
+    if (row.title.length > 255) errors.push('ชื่อตอนต้องไม่เกิน 255 ตัวอักษร')
     if (!/^\d+(\.\d)?$/.test(row.chapter_number) || Number(row.chapter_number) > 99_999_999.9) errors.push('กรุณาระบุเลขตอน 0–99,999,999.9 ทศนิยมไม่เกิน 1 ตำแหน่ง')
     else if ((counts.get(Number(row.chapter_number)) ?? 0) > 1) errors.push('เลขตอนซ้ำกับรายการอื่นที่นำเข้า')
-    if (!/^\d+(\.\d{1,2})?$/.test(row.price) || Number(row.price) > 9_999_999_999.99) errors.push('ราคาไม่ถูกต้อง ต้องเป็น 0–9,999,999,999.99')
+    if (row.price && (!/^\d+(\.\d{1,2})?$/.test(row.price) || Number(row.price) > 9_999_999_999.99)) errors.push('ราคาไม่ถูกต้อง ต้องเป็น 0–9,999,999,999.99')
     if (isManga ? !(row.images?.length) : !row.content.trim()) errors.push(isManga ? 'กรุณาเพิ่มรูปภาพอย่างน้อย 1 รูป' : 'เนื้อหาตอนว่างเปล่า')
     if (row.status === 'scheduled' && (!row.published_at || !Number.isFinite(new Date(row.published_at).getTime()) || new Date(row.published_at) <= new Date())) errors.push('กรุณาระบุเวลาเผยแพร่ในอนาคต')
     return [row.id, errors]

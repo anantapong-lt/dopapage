@@ -320,6 +320,7 @@ export default function CreateChapterPage({ params }: CreateChapterPageProps) {
     }
 
     const body = new FormData(event.currentTarget)
+    if (body.get('price') === '') body.delete('price')
     body.delete('images')
     if (isCartoon) {
       for (const image of images) {
@@ -485,11 +486,11 @@ export default function CreateChapterPage({ params }: CreateChapterPageProps) {
               type="number"
               min={0}
               step="0.01"
-              defaultValue={chapter?.price ?? '0'}
-              placeholder="0 = ฟรี"
+              defaultValue={chapter?.price ?? ''}
+              placeholder="เว้นว่าง = ฟรี"
               className="h-11 rounded-xl px-3"
             />
-            <p className="text-xs text-muted-foreground">กำหนดราคาเป็น 0 สำหรับตอนอ่านฟรี</p>
+            <p className="text-xs text-muted-foreground">เว้นว่างสำหรับตอนอ่านฟรี</p>
           </div>
 
           <div className="space-y-2">

@@ -40,7 +40,7 @@ export const writerChaptersParamsSchema = t.Object({
 export const createWriterChapterBodySchema = t.Object({
   title: t.String({ maxLength: 255 }),
   chapter_number: t.Numeric({ minimum: 0, maximum: 99_999_999.9 }),
-  price: t.Numeric({ minimum: 0, maximum: 9_999_999_999.99 }),
+  price: t.Optional(t.Numeric({ minimum: 0, maximum: 9_999_999_999.99 })),
   status: t.UnionEnum(CHAPTER_STATUSES),
   published_at: t.Optional(t.String({ format: 'date-time' })),
   content: t.Optional(t.String()),
