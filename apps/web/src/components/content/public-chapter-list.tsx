@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowUpDown } from 'lucide-react'
+import { ArrowUpDown, Columns3, List, LoaderCircle } from 'lucide-react'
 import { GiTwoCoins } from 'react-icons/gi'
 import { useAuth } from '@/components/auth/auth-provider'
 import { ChapterPurchaseDialog } from '@/components/content/chapter-purchase-dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -15,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { getPublicContentChapters } from '@/controllers/content.controller'
 import type {
   PublicChapter,
@@ -47,23 +49,6 @@ function formatRelativeDate(value: string, referenceTime: number) {
   return `${years.toLocaleString('th-TH')} ปีที่แล้ว`
 }
 
-function getPaginationItems(currentPage: number, totalPages: number) {
-  if (totalPages <= 7) {
-    return Array.from({ length: totalPages }, (_, index) => index + 1)
-  }
-
-  const items: Array<number | 'ellipsis-start' | 'ellipsis-end'> = [1]
-  const start = Math.max(2, currentPage - 1)
-  const end = Math.min(totalPages - 1, currentPage + 1)
-
-  if (start > 2) items.push('ellipsis-start')
-  for (let page = start; page <= end; page += 1) items.push(page)
-  if (end < totalPages - 1) items.push('ellipsis-end')
-  items.push(totalPages)
-
-  return items
-}
-
 export function PublicChapterList({
   slug,
   storyTitle,
@@ -82,6 +67,7 @@ export function PublicChapterList({
   const [chapters, setChapters] = useState(initialData.chapters)
   const [pagination, setPagination] = useState(initialData.pagination)
   const [sort, setSort] = useState<PublicChapterSort>('chapter_desc')
+  const [displayMode, setDisplayMode] = useState<'list' | 'grid'>('list')
   const [isSelectionMode, setIsSelectionMode] = useState(false)
   const [longPressChapterId, setLongPressChapterId] = useState<string | null>(null)
   const [isLongPressProgressActive, setIsLongPressProgressActive] = useState(false)
@@ -92,6 +78,8 @@ export function PublicChapterList({
   const [purchaseDialogChapters, setPurchaseDialogChapters] = useState<PublicChapter[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const requestInFlightRef = useRef(false)
+  const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const purchasableChapters = chapters.filter((chapter) => !chapter.can_read)
   const selectedChapters = purchasableChapters.filter((chapter) => (
     selectedChapterIds.includes(chapter.id)
@@ -115,21 +103,16 @@ export function PublicChapterList({
     if (longPressProgressFrameRef.current) cancelAnimationFrame(longPressProgressFrameRef.current)
   }, [])
 
-  async function loadPage(page: number, nextSort: PublicChapterSort = sort) {
-    if (
-      isLoading
-      || (page === pagination.page && nextSort === sort)
-      || page < 1
-      || page > pagination.totalPages
-    ) return
-
+  async function changeSort(nextSort: PublicChapterSort) {
+    if (requestInFlightRef.current || nextSort === sort) return
+    requestInFlightRef.current = true
     setIsLoading(true)
     setLoadError(false)
 
     try {
       const nextData = await getPublicContentChapters(
         slug,
-        page,
+        1,
         pagination.limit,
         nextSort,
         accessToken,
@@ -144,8 +127,47 @@ export function PublicChapterList({
       setLoadError(true)
     } finally {
       setIsLoading(false)
+      requestInFlightRef.current = false
     }
   }
+
+  async function loadMore() {
+    if (requestInFlightRef.current || !pagination.hasNextPage) return
+    requestInFlightRef.current = true
+    setIsLoading(true)
+    setLoadError(false)
+
+    try {
+      const nextData = await getPublicContentChapters(
+        slug,
+        pagination.page + 1,
+        pagination.limit,
+        sort,
+        accessToken,
+      )
+      setChapters((current) => [...current, ...nextData.chapters])
+      setPagination(nextData.pagination)
+    } catch {
+      setLoadError(true)
+    } finally {
+      setIsLoading(false)
+      requestInFlightRef.current = false
+    }
+  }
+
+  useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !pagination.hasNextPage) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) void loadMore()
+      },
+      { rootMargin: '320px 0px' },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [accessToken, pagination.hasNextPage, pagination.page, slug, sort])
 
   function markChaptersAsPurchased(chapterIds: string[]) {
     const purchasedIds = new Set(chapterIds)
@@ -237,7 +259,7 @@ export function PublicChapterList({
           <Select
             value={sort}
             disabled={isLoading}
-            onValueChange={(value) => void loadPage(1, value as PublicChapterSort)}
+            onValueChange={(value) => void changeSort(value as PublicChapterSort)}
           >
             <SelectTrigger
               size="sm"
@@ -260,6 +282,22 @@ export function PublicChapterList({
               </SelectGroup>
             </SelectContent>
           </Select>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label={displayMode === 'list' ? 'แสดงรายการตอนแบบ 3 คอลัมน์' : 'แสดงรายการตอนแบบแถวเดียว'}
+                  onClick={() => setDisplayMode((current) => current === 'list' ? 'grid' : 'list')}
+                >
+                  {displayMode === 'list' ? <Columns3 /> : <List />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{displayMode === 'list' ? 'แสดงแบบ 3 คอลัมน์' : 'แสดงแบบแถวเดียว'}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
@@ -313,12 +351,12 @@ export function PublicChapterList({
       ) : null}
 
       {chapters.length > 0 ? (
-        <ol className="divide-y divide-border/70">
+        <ol className={displayMode === 'grid' ? 'grid gap-3 p-4 sm:grid-cols-2 sm:p-6 xl:grid-cols-3' : 'divide-y divide-border/70'}>
           {chapters.map((chapter) => (
             <li
               key={chapter.id}
               data-selected={isSelectionMode && selectedChapterIds.includes(chapter.id) ? 'true' : undefined}
-              className={`group relative isolate flex items-center overflow-hidden transition-colors duration-200 ${
+              className={`group relative isolate flex items-center overflow-hidden transition-colors duration-200 ${displayMode === 'grid' ? 'rounded-2xl border border-border/70' : ''} ${
                 isSelectionMode && selectedChapterIds.includes(chapter.id)
                   ? 'bg-primary text-primary-foreground hover:bg-primary/90 sm:bg-transparent sm:text-inherit sm:hover:bg-accent/80'
                   : 'hover:bg-accent/80'
@@ -404,52 +442,23 @@ export function PublicChapterList({
         </p>
       )}
 
-      {pagination.totalPages > 1 || loadError ? (
-        <div className="border-t border-border/70 px-4 py-4 text-center sm:px-6">
+      {pagination.hasNextPage || isLoading || loadError ? (
+        <div ref={loadMoreRef} className="border-t border-border/70 px-4 py-4 text-center sm:px-6">
           {loadError ? (
-            <p className="mb-3 text-sm text-destructive">
+            <div>
+              <p className="mb-3 text-sm text-destructive">
               โหลดรายการตอนเพิ่มเติมไม่สำเร็จ กรุณาลองใหม่
-            </p>
+              </p>
+              <Button type="button" variant="outline" size="sm" disabled={isLoading} onClick={() => void loadMore()}>
+                ลองใหม่
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <LoaderCircle className="size-4 animate-spin" />
+              กำลังโหลดตอนเพิ่มเติม...
+            </div>
           ) : null}
-          <nav aria-label="หน้ารายการตอน" className="flex flex-wrap items-center justify-center gap-1.5">
-            <button
-              type="button"
-              disabled={isLoading || !pagination.hasPreviousPage}
-              onClick={() => void loadPage(pagination.page - 1)}
-              className="h-9 cursor-pointer rounded-lg border border-border bg-card px-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/45 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ก่อนหน้า
-            </button>
-
-            {getPaginationItems(pagination.page, pagination.totalPages).map((item) => (
-              typeof item === 'number' ? (
-                <button
-                  key={item}
-                  type="button"
-                  disabled={isLoading || item === pagination.page}
-                  onClick={() => void loadPage(item)}
-                  aria-current={item === pagination.page ? 'page' : undefined}
-                  className="size-9 cursor-pointer rounded-lg border border-border bg-card text-sm font-bold text-muted-foreground transition-colors hover:border-primary/45 hover:text-primary disabled:cursor-default aria-[current=page]:border-primary aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground"
-                >
-                  {item.toLocaleString('th-TH')}
-                </button>
-              ) : (
-                <span key={item} className="flex size-9 items-center justify-center text-muted-foreground">
-                  …
-                </span>
-              )
-            ))}
-
-            <button
-              type="button"
-              disabled={isLoading || !pagination.hasNextPage}
-              onClick={() => void loadPage(pagination.page + 1)}
-              className="h-9 cursor-pointer rounded-lg border border-border bg-card px-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/45 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ถัดไป
-            </button>
-
-          </nav>
         </div>
       ) : null}
       <ChapterPurchaseDialog

@@ -101,6 +101,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
       >
         <ChapterReaderHeader
           slug={data.story.slug}
+          storyTitle={data.story.title}
           chapterNumber={data.chapter.chapter_number}
           chapterTitle={data.chapter.title}
           chapters={chapters}

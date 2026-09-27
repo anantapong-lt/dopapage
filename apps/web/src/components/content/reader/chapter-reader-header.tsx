@@ -11,6 +11,7 @@ import { ReadingSettingsMenu } from './reading-settings-menu'
 
 export function ChapterReaderHeader({
   slug,
+  storyTitle,
   chapterNumber,
   chapterTitle,
   chapters,
@@ -21,6 +22,7 @@ export function ChapterReaderHeader({
   onNavigate,
 }: {
   slug: string
+  storyTitle: string
   chapterNumber: string
   chapterTitle: string
   chapters: PublicReaderChapter[]
@@ -48,6 +50,13 @@ export function ChapterReaderHeader({
           <Home className="size-4" aria-hidden="true" />
         </Link>
         <div className="min-w-0">
+          <Link
+            href={`/content/${encodeURIComponent(slug)}`}
+            className="block truncate text-xs font-bold transition-opacity hover:opacity-70"
+            style={{ color: theme.text }}
+          >
+            {storyTitle}
+          </Link>
           <p className="text-xs font-semibold" style={{ color: theme.text, opacity: 0.7 }}>
             ตอนที่ {formatChapterNumber(chapterNumber)}
           </p>
