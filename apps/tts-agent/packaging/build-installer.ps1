@@ -32,6 +32,15 @@ if ($pyproject -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
     throw "Could not read the application version from pyproject.toml."
 }
 $version = $Matches[1]
+$tritonMetadataDirectory = & $PythonCommand $PythonArguments -c "import importlib.metadata as metadata; print(metadata.distribution('triton-windows')._path)"
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tritonMetadataDirectory -PathType Container)) {
+    throw "Could not locate triton-windows package metadata."
+}
+$tritonEntryPoints = Join-Path $tritonMetadataDirectory "entry_points.txt"
+if (-not (Test-Path -LiteralPath $tritonEntryPoints -PathType Leaf)) {
+    throw "triton-windows package metadata is missing entry_points.txt."
+}
+$tritonMetadataDestination = Split-Path -Leaf $tritonMetadataDirectory
 $entrypoint = Join-Path $PSScriptRoot "entrypoint.py"
 $workerEntrypoint = Join-Path $PSScriptRoot "worker_entrypoint.py"
 $distPath = Join-Path $projectRoot "dist"
@@ -60,6 +69,7 @@ try {
         --name "Readji TTS Agent Worker" `
         --paths "src" `
         --copy-metadata triton-windows `
+        --add-data "$tritonEntryPoints;$tritonMetadataDestination" `
         --collect-all voxcpm `
         --collect-all soundfile `
         --distpath $distPath `

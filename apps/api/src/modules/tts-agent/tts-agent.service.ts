@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { db } from '../../db'
 import { TTS_JOB_STATUS, type TtsJobStatus } from '../../models/tts-job.model'
-import { createAssetUploadUrl, createPublicAssetUrl } from '../assets/local-asset.service'
+import { createAssetUploadUrl, createPublicAssetUrl, deleteAsset } from '../assets/local-asset.service'
 
 const LEASE_SECONDS = 30 * 60
 
@@ -33,8 +33,23 @@ export async function listWriterTtsStories(userId: string) {
   `
 }
 
-export async function listWriterTtsChapters(userId: string, storyId: string, page: number, limit: number) {
+export async function listWriterTtsChapters(
+  userId: string, storyId: string, audioStatus: 'all' | 'missing' | 'available', page: number, limit: number,
+) {
   const offset = (page - 1) * limit
+  const audioFilter = audioStatus === 'all' ? db`` : audioStatus === 'available' ? db`
+    AND EXISTS (
+      SELECT 1 FROM tts_jobs audio
+      WHERE audio.chapter_id = c.id AND audio.status = ${TTS_JOB_STATUS.DONE}
+        AND (NULLIF(audio.audio_key, '') IS NOT NULL OR NULLIF(audio.audio_url, '') IS NOT NULL)
+    )
+  ` : db`
+    AND NOT EXISTS (
+      SELECT 1 FROM tts_jobs audio
+      WHERE audio.chapter_id = c.id AND audio.status = ${TTS_JOB_STATUS.DONE}
+        AND (NULLIF(audio.audio_key, '') IS NOT NULL OR NULLIF(audio.audio_url, '') IS NOT NULL)
+    )
+  `
   const [items, [count]] = await Promise.all([
     db<{
       chapter_id: string; story_id: string; story_title: string; chapter_number: string; chapter_title: string
@@ -57,11 +72,7 @@ export async function listWriterTtsChapters(userId: string, storyId: string, pag
       ) j ON TRUE
       WHERE s.creator_user_id = ${userId} AND s.deleted_at IS NULL
         AND s.id = ${storyId}::UUID
-        AND NOT EXISTS (
-          SELECT 1 FROM tts_jobs audio
-          WHERE audio.chapter_id = c.id AND audio.status = ${TTS_JOB_STATUS.DONE}
-            AND (NULLIF(audio.audio_key, '') IS NOT NULL OR NULLIF(audio.audio_url, '') IS NOT NULL)
-        )
+        ${audioFilter}
       ORDER BY c.chapter_number ASC, c.id
       LIMIT ${limit} OFFSET ${offset}
     `,
@@ -71,11 +82,7 @@ export async function listWriterTtsChapters(userId: string, storyId: string, pag
       INNER JOIN novel_chapter_contents n ON n.chapter_id = c.id
       WHERE s.creator_user_id = ${userId} AND s.deleted_at IS NULL
         AND s.id = ${storyId}::UUID
-        AND NOT EXISTS (
-          SELECT 1 FROM tts_jobs audio
-          WHERE audio.chapter_id = c.id AND audio.status = ${TTS_JOB_STATUS.DONE}
-            AND (NULLIF(audio.audio_key, '') IS NOT NULL OR NULLIF(audio.audio_url, '') IS NOT NULL)
-        )
+        ${audioFilter}
     `,
   ])
   const total = Number(count.total)
@@ -194,15 +201,38 @@ export async function completeTtsJob(userId: string, jobId: string, workerId: st
   }
   const upload = await createTtsUploadUrl(userId, jobId, workerId)
   const audioUrl = createPublicAssetUrl(upload.audio_key)
-  const rows = await db`
-    UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
-      duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), completed_at = NOW(),
-      lease_expires_at = NULL, updated_at = NOW()
-    WHERE id = ${jobId} AND requested_by = ${userId} AND worker_id = ${workerId}::UUID
-      AND status = ${TTS_JOB_STATUS.PROCESSING} AND lease_expires_at > NOW()
-    RETURNING id
-  `
-  if (!rows.length) throw new TtsAgentError('Job could not be completed', 409)
+  const supersededAudioKeys = await db.begin(async (transaction) => {
+    const [completed] = await transaction<{ chapter_id: string }[]>`
+      UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
+        duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), completed_at = NOW(),
+        lease_expires_at = NULL, updated_at = NOW()
+      WHERE id = ${jobId} AND requested_by = ${userId} AND worker_id = ${workerId}::UUID
+        AND status = ${TTS_JOB_STATUS.PROCESSING} AND lease_expires_at > NOW()
+      RETURNING chapter_id
+    `
+    if (!completed) throw new TtsAgentError('Job could not be completed', 409)
+
+    // Keep only the newly completed audio for this writer and chapter. The
+    // storage deletion is deliberately deferred until this transaction commits.
+    const obsolete = await transaction<{ audio_key: string | null }[]>`
+      DELETE FROM tts_jobs
+      WHERE chapter_id = ${completed.chapter_id} AND requested_by = ${userId}
+        AND id <> ${jobId} AND status = ${TTS_JOB_STATUS.DONE}
+      RETURNING NULLIF(audio_key, '') AS audio_key
+    `
+    return obsolete.flatMap(({ audio_key }) => audio_key ? [audio_key] : [])
+  })
+
+  await Promise.all(supersededAudioKeys.map(async (audioKey) => {
+    try {
+      // deleteAsset resolves a local/ key through LOCAL_UPLOAD, otherwise R2.
+      await deleteAsset(audioKey, 'public')
+    } catch (error) {
+      // The new audio is already committed and playable; a failed cleanup must
+      // not report its successful render as failed.
+      console.error('Unable to remove superseded TTS audio asset', { jobId, audioKey, error })
+    }
+  }))
   return { audio_key: upload.audio_key, audio_url: audioUrl }
 }
 

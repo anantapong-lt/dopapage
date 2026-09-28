@@ -2,6 +2,7 @@ import { t } from 'elysia'
 
 export const ttsChapterListQuerySchema = t.Object({
   story_id: t.String({ format: 'uuid' }),
+  audio_status: t.Optional(t.Union([t.Literal('all'), t.Literal('missing'), t.Literal('available')])),
   page: t.Optional(t.Numeric({ minimum: 1, multipleOf: 1 })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
 })

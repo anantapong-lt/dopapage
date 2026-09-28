@@ -394,12 +394,31 @@ class FFmpegSetupDialog(QDialog):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.thread: FFmpegSetupThread | None = None
-        self.setWindowTitle("เตรียม FFmpeg สำหรับแอป")
         self.setModal(True)
         self.setFixedWidth(520)
+        self.setWindowTitle("กำลังเตรียมระบบประมวลผลเสียง")
+        self.setObjectName("processingPreparationDialog")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            QDialog#processingPreparationDialog {{ background: {card}; }}
+            QDialog#processingPreparationDialog QLabel {{ color: {foreground}; background: transparent; }}
+            QDialog#processingPreparationDialog QProgressBar {{
+                min-height: 8px; border: 0; border-radius: 4px; background: {muted};
+            }}
+            QDialog#processingPreparationDialog QProgressBar::chunk {{
+                border-radius: 4px; background: {primary};
+            }}
+            QDialog#processingPreparationDialog PushButton {{
+                min-height: 32px; padding: 0 14px; color: {foreground};
+                background: {card}; border: 1px solid {input}; border-radius: 8px;
+            }}
+            QDialog#processingPreparationDialog PrimaryPushButton {{
+                color: {primary_foreground}; background: {primary}; border-color: {primary};
+            }}
+        """.format_map(WEB_COLORS))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.addWidget(SubtitleLabel("กำลังเตรียมเครื่องมือรวมเสียง", self))
+        layout.addWidget(SubtitleLabel("กำลังเตรียมระบบประมวลผลเสียง", self))
         hint = BodyLabel(
             "หากยังไม่มี FFmpeg แอปจะดาวน์โหลดจาก gyan.dev ประมาณ 104 MB\n"
             "ติดตั้งไว้ใช้เฉพาะแอป ไม่แก้ PATH และยังไม่เริ่มแปลงเสียง", self,
@@ -466,8 +485,17 @@ class FFmpegSetupDialog(QDialog):
             self.retry_button.show()
             self.cancel_button.setText("ปิด")
         else:
-            self.accept()
             self.ready.emit()
+
+    def show_model_preparing(self) -> None:
+        """Continue the same preparation dialog while VoxCPM2 loads on the GPU."""
+        self.setWindowTitle("กำลังเตรียมระบบประมวลผลเสียง")
+        self.retry_button.hide()
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setText("ยกเลิก")
+        self.progress.setRange(0, 0)
+        self.status.setText("กำลังโหลดโมเดลเสียงเข้าสู่ GPU และปรับแต่งระบบให้พร้อมใช้งาน...")
+        self.show()
 
     def reject(self) -> None:
         if self.thread is not None and self.thread.isRunning():
@@ -1031,7 +1059,14 @@ class JobsPage(QWidget):
         self.story_filter.addItem("เลือกเรื่องก่อนแสดงตอน", userData=None)
         self.story_filter.currentIndexChanged.connect(self._story_changed)
         filters.addWidget(self.story_filter, 1)
-        filters.addWidget(BodyLabel("เฉพาะตอนที่ยังไม่มีเสียง", self))
+        filters.addWidget(BodyLabel("สถานะเสียง", self))
+        self.audio_status_filter = ComboBox(self)
+        self.audio_status_filter.setMinimumWidth(180)
+        self.audio_status_filter.addItem("ยังไม่มีเสียง", userData="missing")
+        self.audio_status_filter.addItem("ทั้งหมด", userData="all")
+        self.audio_status_filter.addItem("มีเสียงแล้ว", userData="available")
+        self.audio_status_filter.currentIndexChanged.connect(self._audio_status_changed)
+        filters.addWidget(self.audio_status_filter)
         self.cancel_all_button = PushButton("ยกเลิกงานทั้งหมด", self)
         self.cancel_all_button.clicked.connect(self.cancel_all_jobs)
         filters.addWidget(self.cancel_all_button)
@@ -1136,12 +1171,16 @@ class JobsPage(QWidget):
         self.status.setText("VoxCPM2 พร้อมใช้งานบน GPU ใน process แยก")
         if self.model_preparing_dialog is not None:
             self.model_preparing_dialog.accept()
+        if self.ffmpeg_setup_dialog is not None and self.ffmpeg_setup_dialog.isVisible():
+            self.ffmpeg_setup_dialog.accept()
         self._continue_start()
 
     def _model_preload_failed(self, message: str) -> None:
         self._cancel_pending_start()
         if self.model_preparing_dialog is not None:
             self.model_preparing_dialog.accept()
+        if self.ffmpeg_setup_dialog is not None and self.ffmpeg_setup_dialog.isVisible():
+            self.ffmpeg_setup_dialog.accept()
         self.model_ready = False
         self.render_button.setEnabled(not self.cancelling_all)
         self.status.setText("เตรียมโมเดลเสียงไม่สำเร็จ")
@@ -1183,6 +1222,10 @@ class JobsPage(QWidget):
         self.page = 1
         self.load_chapters()
 
+    def _audio_status_changed(self, _index: int) -> None:
+        self.page = 1
+        self.load_chapters()
+
     def _change_page(self, delta: int) -> None:
         target = self.page + delta
         if 1 <= target <= self.total_pages:
@@ -1195,7 +1238,7 @@ class JobsPage(QWidget):
         if not self.story_filter.currentData():
             self.page_label.setText("กรุณาเลือกเรื่องก่อนแสดงตอน")
         elif not total:
-            self.page_label.setText("ไม่มีตอนที่ยังไม่มีเสียงในเรื่องนี้")
+            self.page_label.setText("ไม่มีตอนที่ตรงกับสถานะเสียงที่เลือกในเรื่องนี้")
         else:
             self.page_label.setText(f"หน้า {self.page}/{self.total_pages} · {total:,} ตอน · หน้าละ {CHAPTER_PAGE_SIZE} ตอน")
 
@@ -1208,11 +1251,12 @@ class JobsPage(QWidget):
             self._update_pagination(0)
             return
         try:
-            result = self.client.list_chapters(story_id, self.page, CHAPTER_PAGE_SIZE)
+            audio_status = self.audio_status_filter.currentData()
+            result = self.client.list_chapters(story_id, audio_status, self.page, CHAPTER_PAGE_SIZE)
             self.total_pages = result["pagination"]["total_pages"]
             if self.page > max(1, self.total_pages):
                 self.page = max(1, self.total_pages)
-                result = self.client.list_chapters(story_id, self.page, CHAPTER_PAGE_SIZE)
+                result = self.client.list_chapters(story_id, audio_status, self.page, CHAPTER_PAGE_SIZE)
             self.total_pages = result["pagination"]["total_pages"]
             for item in result["items"]:
                 if (item.get("latest_job_id") == self.rendering_job_id
@@ -1312,10 +1356,13 @@ class JobsPage(QWidget):
             self.ffmpeg_setup_dialog.start()
             return
         if not self.model_ready or not self.renderer or not self.renderer.is_ready:
-            if self.model_preparing_dialog is None:
-                self.model_preparing_dialog = ModelPreparingDialog(self.window())
-                self.model_preparing_dialog.rejected.connect(self._cancel_pending_start)
-            self.model_preparing_dialog.show()
+            if self.ffmpeg_setup_dialog is not None and self.ffmpeg_setup_dialog.isVisible():
+                self.ffmpeg_setup_dialog.show_model_preparing()
+            else:
+                if self.model_preparing_dialog is None:
+                    self.model_preparing_dialog = ModelPreparingDialog(self.window())
+                    self.model_preparing_dialog.rejected.connect(self._cancel_pending_start)
+                self.model_preparing_dialog.show()
             self.preload_model()
             return
         # Keep the request active until the queue is empty or processing stops.

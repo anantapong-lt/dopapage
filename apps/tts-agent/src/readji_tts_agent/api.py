@@ -58,8 +58,8 @@ class ApiClient:
     def list_stories(self) -> list[dict[str, Any]]:
         return self._request("GET", "/writer/tts/stories")["items"]
 
-    def list_chapters(self, story_id: str, page: int = 1, limit: int = 20) -> dict[str, Any]:
-        query = urlencode({"story_id": story_id, "page": page, "limit": limit})
+    def list_chapters(self, story_id: str, audio_status: str = "all", page: int = 1, limit: int = 20) -> dict[str, Any]:
+        query = urlencode({"story_id": story_id, "audio_status": audio_status, "page": page, "limit": limit})
         return self._request("GET", f"/writer/tts/chapters?{query}")
 
     def cancel_all_jobs(self) -> dict[str, Any]:

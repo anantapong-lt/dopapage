@@ -8,7 +8,8 @@ import { READING_FONTS, READING_THEMES } from '@/lib/reading-settings'
 import { ReaderContentSkeleton } from './reader-content-skeleton'
 import { useReaderContentProtection } from './use-reader-content-protection'
 
-const BLOCKED_ELEMENTS = 'script,style,iframe,object,embed,form,input,button,textarea,select,meta,link,base,svg,math,audio,video,source,canvas'
+const BLOCKED_ELEMENTS =
+  'script,style,iframe,object,embed,form,input,button,textarea,select,meta,link,base,svg,math,audio,video,source,canvas'
 const SAFE_ATTRIBUTES = new Set(['data-type', 'dir', 'start', 'style'])
 const SAFE_IMAGE_ATTRIBUTES = new Set(['src', 'alt', 'data-image-display-width', 'data-image-align'])
 const SAFE_STYLE_PROPERTIES = new Set([
@@ -29,9 +30,11 @@ const SAFE_STYLE_PROPERTIES = new Set([
 ])
 
 function isSafeStyleValue(value: string) {
-  return value.length <= 200
-    && !/(?:@import|behavior|expression|javascript|[-]moz-binding|url)\s*\(/i.test(value)
-    && !/[<>\u0000]/.test(value)
+  return (
+    value.length <= 200 &&
+    !/(?:@import|behavior|expression|javascript|[-]moz-binding|url)\s*\(/i.test(value) &&
+    !/[<>\u0000]/.test(value)
+  )
 }
 
 function isSafeChapterImageSource(value: string) {
@@ -39,7 +42,7 @@ function isSafeChapterImageSource(value: string) {
   if (!match) return false
   const encoded = match[1].replace(/\s/g, '')
   const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0
-  return encoded.length > 0 && Math.floor(encoded.length * 3 / 4) - padding <= 5 * 1024 * 1024
+  return encoded.length > 0 && Math.floor((encoded.length * 3) / 4) - padding <= 5 * 1024 * 1024
 }
 
 function sanitizeChapterHtml(html: string) {
@@ -65,7 +68,6 @@ function sanitizeChapterHtml(html: string) {
         element.removeAttribute(attribute.name)
         continue
       }
-
     }
 
     if (element.tagName === 'IMG') {
@@ -90,9 +92,8 @@ function sanitizeChapterHtml(html: string) {
       const parsedWidth = Number(element.getAttribute('data-image-display-width'))
       const align = element.getAttribute('data-image-align')
       style.display = 'block'
-      style.width = Number.isInteger(parsedWidth) && parsedWidth >= 48 && parsedWidth <= 5000
-        ? `${parsedWidth}px`
-        : 'auto'
+      style.width =
+        Number.isInteger(parsedWidth) && parsedWidth >= 48 && parsedWidth <= 5000 ? `${parsedWidth}px` : 'auto'
       style.maxWidth = '100%'
       style.height = 'auto'
       style.marginLeft = align === 'left' ? '0' : 'auto'
@@ -105,9 +106,9 @@ function sanitizeChapterHtml(html: string) {
     const previous = paragraph.previousElementSibling
     paragraph.style.removeProperty('text-indent')
     if (
-      previous?.matches(paragraphSelector)
-      && !previous.textContent?.trim()
-      && paragraph.style.textAlign !== 'center'
+      previous?.matches(paragraphSelector) &&
+      !previous.textContent?.trim() &&
+      paragraph.style.textAlign !== 'center'
     ) {
       paragraph.style.textIndent = '2em'
     }
@@ -135,9 +136,7 @@ export function NovelChapterContent({
     html: string
   } | null>(null)
   const theme = READING_THEMES[settings.theme]
-  const safeContent = sanitizedContent?.source === content
-    ? sanitizedContent.html
-    : null
+  const safeContent = sanitizedContent?.source === content ? sanitizedContent.html : null
 
   useEffect(() => {
     setSanitizedContent({
@@ -147,7 +146,14 @@ export function NovelChapterContent({
   }, [content])
 
   if (showAudioPlayer && audioUrl) {
-    return <NovelAudioPlayer audioUrl={audioUrl} themeBackground={theme.background} themeText={theme.text} onBackToContent={onBackToContent} />
+    return (
+      <NovelAudioPlayer
+        audioUrl={audioUrl}
+        themeBackground={theme.background}
+        themeText={theme.text}
+        onBackToContent={onBackToContent}
+      />
+    )
   }
 
   return (
@@ -158,11 +164,7 @@ export function NovelChapterContent({
       {safeContent === null ? (
         <ReaderContentSkeleton />
       ) : (
-        <div
-          className="relative"
-          onContextMenu={preventInteraction}
-          onDragStart={preventInteraction}
-        >
+        <div className="relative" onContextMenu={preventInteraction} onDragStart={preventInteraction}>
           <div
             className="mx-auto max-w-3xl select-none break-words [&_blockquote]:my-6 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/35 [&_blockquote]:pl-4 [&_h1]:my-6 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:my-5 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:my-4 [&_h3]:text-xl [&_h3]:font-bold [&_hr]:my-8 [&_img]:mx-auto [&_img]:my-6 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-lg [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-7 [&_p]:min-h-[1lh] [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-muted [&_pre]:p-4 [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-7"
             style={{
@@ -238,11 +240,11 @@ function NovelAudioPlayer({
       style={{ backgroundColor: themeBackground, color: themeText }}
     >
       <div className="w-full max-w-lg rounded-[2rem] border border-current/10 bg-black/[0.035] p-6 text-center shadow-sm sm:p-10">
-        <p className="text-sm font-bold tracking-[0.22em] uppercase opacity-60">เสียงบรรยาย</p>
         <div
           className={`relative mx-auto mt-8 grid size-56 place-items-center rounded-full bg-zinc-950 shadow-[inset_0_0_0_0.5rem_rgba(255,255,255,0.06),0_1.25rem_2.5rem_rgba(0,0,0,0.22)] sm:size-64 ${isPlaying ? 'animate-[spin_5s_linear_infinite] motion-reduce:animate-none' : ''}`}
           style={{
-            backgroundImage: 'repeating-radial-gradient(circle at center, #121212 0 7px, #292929 8px 9px, #111111 10px 15px)',
+            backgroundImage:
+              'repeating-radial-gradient(circle at center, #121212 0 7px, #292929 8px 9px, #111111 10px 15px)',
           }}
         >
           <div className="grid size-20 place-items-center rounded-full border-[0.6rem] border-black/20 bg-primary shadow-[inset_0_0_0_0.35rem_rgba(255,255,255,0.14)]">
@@ -284,14 +286,26 @@ function NovelAudioPlayer({
           <Button type="button" variant="ghost" size="icon-lg" aria-label="เริ่มเสียงใหม่" onClick={restart}>
             <RotateCcw aria-hidden="true" />
           </Button>
-          <Button type="button" size="icon-lg" className="size-14 rounded-full" aria-label={isPlaying ? 'หยุดเสียงชั่วคราว' : 'เล่นเสียง'} onClick={togglePlayback}>
-            {isPlaying ? <Pause className="size-6" aria-hidden="true" /> : <Play className="size-6" aria-hidden="true" />}
+          <Button
+            type="button"
+            size="icon-lg"
+            className="size-14 rounded-full"
+            aria-label={isPlaying ? 'หยุดเสียงชั่วคราว' : 'เล่นเสียง'}
+            onClick={togglePlayback}
+          >
+            {isPlaying ? (
+              <Pause className="size-6" aria-hidden="true" />
+            ) : (
+              <Play className="size-6" aria-hidden="true" />
+            )}
           </Button>
           <span className="flex size-9 items-center justify-center" aria-label="เสียงบรรยาย">
             <Volume2 className="size-4" aria-hidden="true" />
           </span>
         </div>
-        <Button type="button" variant="link" className="mt-5" onClick={onBackToContent}>กลับไปอ่านเนื้อหา</Button>
+        <Button type="button" variant="link" className="mt-5" onClick={onBackToContent}>
+          กลับไปอ่านเนื้อหา
+        </Button>
       </div>
     </article>
   )

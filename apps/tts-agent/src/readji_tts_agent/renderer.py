@@ -29,7 +29,10 @@ VOICE_FILES = {
 }
 
 MAXIMUM_CHUNK_CHARACTERS = 480
-INFERENCE_TIMESTEPS = 4
+# Fewer denoising steps are faster but create noticeably more hiss and other
+# synthesis artifacts. Keep this at the model's quality-oriented setting.
+INFERENCE_TIMESTEPS = 8
+MP3_BITRATE = "96k"
 
 
 def performance_logger() -> logging.Logger:
@@ -210,7 +213,11 @@ class _Mp3Encoder:
             self._process = subprocess.Popen(
                 [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y",
                  "-f", "f32le", "-ar", str(sample_rate), "-ac", "1", "-i", "pipe:0",
-                 "-ac", "1", "-ar", "32000", "-b:a", "32k", str(output)],
+                 # Preserve VoxCPM2's native sample rate. Downsampling to 32 kHz
+                 # and encoding at 32 kbps made speech artifacts substantially
+                 # more audible, especially in Thai consonants and sibilants.
+                 "-ac", "1", "-ar", str(sample_rate), "-c:a", "libmp3lame",
+                 "-b:a", MP3_BITRATE, str(output)],
                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self._errors,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
