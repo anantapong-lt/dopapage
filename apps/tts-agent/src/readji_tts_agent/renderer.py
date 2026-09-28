@@ -33,6 +33,8 @@ MAXIMUM_CHUNK_CHARACTERS = 480
 # synthesis artifacts. Keep this at the model's quality-oriented setting.
 INFERENCE_TIMESTEPS = 8
 MP3_BITRATE = "96k"
+VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
+VOXCPM_MODEL_REVISION = "32279effe8c19989596f05d353d1447f51d9e915"
 
 
 def performance_logger() -> logging.Logger:
@@ -66,15 +68,22 @@ def _load_voxcpm_weights():
     """Skip disposable Linear/Embedding initialization in the isolated worker."""
     import gc
     import torch
+    from huggingface_hub import snapshot_download
     from voxcpm import VoxCPM
     from voxcpm.model.voxcpm2 import VoxCPM2Model
 
     def load():
+        local_data = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        cache_dir = local_data / "Readji" / "TTS Agent" / "cache" / "huggingface"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        model_path = snapshot_download(
+            VOXCPM_MODEL_ID,
+            revision=VOXCPM_MODEL_REVISION,
+            cache_dir=str(cache_dir),
+            local_files_only=False,
+        )
         return VoxCPM.from_pretrained(
-            "openbmb/VoxCPM2", device="cuda", load_denoiser=False,
-            # A first-run runtime has no model cache yet. Hugging Face stores
-            # the downloaded weights under HF_HOME for reuse after updates.
-            local_files_only=False, optimize=False,
+            model_path, device="cuda", load_denoiser=False, optimize=False,
         )
 
     original_linear_reset = torch.nn.Linear.reset_parameters

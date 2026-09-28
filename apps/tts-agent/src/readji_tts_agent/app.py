@@ -24,6 +24,10 @@ from .secure_store import clear_login_credentials, clear_refresh_token, load_log
 
 DEFAULT_API_URL = os.environ.get("READJI_TTS_API_URL", "http://localhost:4000")
 VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
+# Pin the model revision so Hugging Face does not need a separate repo-info
+# lookup. Some networks return an empty response for that lookup even though
+# the model files themselves are publicly downloadable.
+VOXCPM_MODEL_REVISION = "32279effe8c19989596f05d353d1447f51d9e915"
 PROGRESS_REPORT_INTERVAL = 5
 JOB_STATUS_POLL_SECONDS = 3
 CHAPTER_PAGE_SIZE = 20
@@ -304,10 +308,21 @@ class LoginThread(QThread):
             self.failed.emit(str(error))
 
 
+def voxcpm_cache_directory() -> Path:
+    directory = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Readji" / "TTS Agent" / "cache" / "huggingface"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
 def is_voxcpm_model_cached() -> bool:
     try:
         from huggingface_hub import snapshot_download
-        snapshot_download(VOXCPM_MODEL_ID, local_files_only=True)
+        snapshot_download(
+            VOXCPM_MODEL_ID,
+            revision=VOXCPM_MODEL_REVISION,
+            cache_dir=str(voxcpm_cache_directory()),
+            local_files_only=True,
+        )
         return True
     except Exception:
         return False
@@ -320,7 +335,11 @@ class ModelDownloadThread(QThread):
     def run(self) -> None:
         try:
             from huggingface_hub import snapshot_download
-            snapshot_download(VOXCPM_MODEL_ID)
+            snapshot_download(
+                VOXCPM_MODEL_ID,
+                revision=VOXCPM_MODEL_REVISION,
+                cache_dir=str(voxcpm_cache_directory()),
+            )
             self.completed.emit()
         except Exception as error:
             self.failed.emit(f"{type(error).__name__}: {error}")
@@ -335,6 +354,18 @@ class ModelDownloadDialog(QDialog):
         self.setModal(True)
         self.setFixedWidth(460)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
+        self.setObjectName("modelDownloadDialog")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            QDialog#modelDownloadDialog {{ background: {card}; }}
+            QDialog#modelDownloadDialog QLabel {{ color: {foreground}; background: transparent; }}
+            QDialog#modelDownloadDialog QProgressBar {{
+                min-height: 8px; border: 0; border-radius: 4px; background: {muted};
+            }}
+            QDialog#modelDownloadDialog QProgressBar::chunk {{
+                border-radius: 4px; background: {primary};
+            }}
+        """.format_map(WEB_COLORS))
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(12)
