@@ -297,7 +297,7 @@ export async function getPublicChapter(
       )
     }
 
-    const [chapters, content, mangaPages] = await Promise.all([
+    const [chapters, novelContent, mangaPages] = await Promise.all([
       findPublicReaderChapters(chapter.story.id, currentUserId, hasAdminAccess),
       chapter.story.type === 'novel' ? findNovelChapterContent(chapter.id) : Promise.resolve(null),
       chapter.story.type === 'manga'
@@ -322,7 +322,8 @@ export async function getPublicChapter(
           published_at: chapter.published_at,
         },
         chapters,
-        content,
+        content: novelContent?.content ?? null,
+        audio_url: novelContent?.audio_url ?? null,
         pages,
         manga_page_pagination: {
           page,

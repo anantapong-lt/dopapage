@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { db } from '../../db'
 import { CHAPTER_STATUS, MODERATION_STATUS, STORY_STATUS, type StoryStatus, type StoryType } from '../../models/story.model'
 import { USER_STATUS, WRITER_STATUS } from '../../models/user.model'
@@ -469,15 +470,27 @@ export async function findPublicReaderChapters(
   `
 }
 
-export async function findNovelChapterContent(chapterId: string): Promise<string> {
+export async function findNovelChapterContent(chapterId: string): Promise<{ content: string; audio_url: string | null }> {
   const [chapter] = await db<Array<{ content: string }>>`
     SELECT content
     FROM novel_chapter_contents
     WHERE chapter_id = ${chapterId}
     LIMIT 1
   `
+  const content = chapter?.content ?? ''
+  const sourceHash = createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex')
+  const [audio] = await db<Array<{ audio_url: string | null }>>`
+    SELECT NULLIF(audio_url, '') AS audio_url
+    FROM tts_jobs
+    WHERE chapter_id = ${chapterId}
+      AND status = 'done'
+      AND source_hash = ${sourceHash}
+      AND NULLIF(audio_url, '') IS NOT NULL
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `
 
-  return chapter?.content ?? ''
+  return { content, audio_url: audio?.audio_url ?? null }
 }
 
 export async function findMangaChapterPages(

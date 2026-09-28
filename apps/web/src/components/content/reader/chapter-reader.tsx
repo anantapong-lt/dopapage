@@ -34,6 +34,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   const [pendingChapter, setPendingChapter] = useState<PublicReaderChapter | null>(null)
   const [readerNavbarVisible, setReaderNavbarVisible] = useState(true)
   const [navigationVisible, setNavigationVisible] = useState(false)
+  const [showAudioPlayer, setShowAudioPlayer] = useState(false)
 
   useEffect(() => {
     setSettings(loadReadingSettings())
@@ -106,9 +107,12 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           chapterTitle={data.chapter.title}
           chapters={chapters}
           showReadingSettings={data.story.type === 'novel'}
+          hasAudio={data.story.type === 'novel' && Boolean(data.audio_url)}
+          showingAudioPlayer={showAudioPlayer}
           settings={settings}
           navbarVisible={readerNavbarVisible}
           onSettingsChange={updateSettings}
+          onAudioPlayerToggle={() => setShowAudioPlayer((current) => !current)}
           onNavigate={navigateToChapter}
         />
 
@@ -125,6 +129,9 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
             <NovelChapterContent
               content={data.content ?? ''}
               settings={settings}
+              audioUrl={data.audio_url}
+              showAudioPlayer={showAudioPlayer}
+              onBackToContent={() => setShowAudioPlayer(false)}
             />
           )}
           <ChapterNavigation

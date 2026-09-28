@@ -1,8 +1,9 @@
 'use client'
 
-import { Home } from 'lucide-react'
+import { AudioLines, BookOpen, Home } from 'lucide-react'
 import Link from 'next/link'
 import { ShareButtons } from '@/components/common/share-buttons'
+import { Button } from '@/components/ui/button'
 import type { PublicReaderChapter } from '@/interface/content.interface'
 import { READING_THEMES, type ReadingSettings } from '@/lib/reading-settings'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
@@ -16,9 +17,12 @@ export function ChapterReaderHeader({
   chapterTitle,
   chapters,
   showReadingSettings,
+  hasAudio,
+  showingAudioPlayer,
   settings,
   navbarVisible,
   onSettingsChange,
+  onAudioPlayerToggle,
   onNavigate,
 }: {
   slug: string
@@ -27,9 +31,12 @@ export function ChapterReaderHeader({
   chapterTitle: string
   chapters: PublicReaderChapter[]
   showReadingSettings: boolean
+  hasAudio: boolean
+  showingAudioPlayer: boolean
   settings: ReadingSettings
   navbarVisible: boolean
   onSettingsChange: (settings: ReadingSettings) => void
+  onAudioPlayerToggle: () => void
   onNavigate: (chapter: PublicReaderChapter) => void
 }) {
   const theme = READING_THEMES[settings.theme]
@@ -79,6 +86,20 @@ export function ChapterReaderHeader({
             onChange={onSettingsChange}
             triggerClassName="!text-current"
           />
+        ) : null}
+        {hasAudio ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            aria-label={showingAudioPlayer ? 'กลับไปอ่านเนื้อหา' : 'ฟังเสียงตอนนี้'}
+            aria-pressed={showingAudioPlayer}
+            title={showingAudioPlayer ? 'กลับไปอ่านเนื้อหา' : 'ฟังเสียงตอนนี้'}
+            className="!text-current"
+            onClick={onAudioPlayerToggle}
+          >
+            {showingAudioPlayer ? <BookOpen aria-hidden="true" /> : <AudioLines aria-hidden="true" />}
+          </Button>
         ) : null}
         <ShareButtons title={chapterTitle} iconOnly className="!text-current" />
       </div>

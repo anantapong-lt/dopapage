@@ -136,6 +136,7 @@ export interface PublicChapterResponse {
   }
   chapters: PublicReaderChapter[]
   content: string | null
+  audio_url: string | null
   pages: PublicMangaChapterPage[]
   manga_page_pagination: {
     page: number
