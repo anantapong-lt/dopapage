@@ -29,7 +29,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "..\dist\Readji TTS Agent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; The GPU runtime is downloaded by the bootstrap on first launch.
+Source: "..\dist\bootstrap\Readji TTS Agent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

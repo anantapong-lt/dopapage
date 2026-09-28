@@ -41,10 +41,26 @@ python -m pip install ".[packaging]"
 ```
 
 The completed installer is written to
-`dist/installer/Readji-TTS-Agent-Setup-<version>.exe`. It installs only for the
-current Windows user under `%LOCALAPPDATA%`, adds Start Menu and desktop
-shortcuts, and does not require administrator permission. The package contains
-a windowed UI and a separate, hidden console worker so model-process IPC works
-reliably. The packaged app keeps the current API default of
-`http://localhost:4000`; change it at launch with `READJI_TTS_API_URL` when a
-production endpoint is available.
+`dist/installer/Readji-TTS-Agent-Setup-<version>.exe`. It contains only a small
+bootstrap and installs for the current Windows user under `%LOCALAPPDATA%`.
+The separately hosted runtime archive and its `runtime-manifest.json` are
+written to `dist/release/`. Upload both to Google Drive and replace the
+`runtime.url` placeholder in the manifest with the archive's public download
+link. Then upload the edited manifest and put its public link in:
+
+`%LOCALAPPDATA%\Readji\TTS Agent\bootstrap-config.json`
+
+```json
+{
+  "manifest_url": "https://drive.google.com/file/d/FILE_ID/view"
+}
+```
+
+On first launch the bootstrap downloads the runtime, verifies its SHA-256, and
+starts the agent. On later launches it reads the manifest again and installs a
+new runtime version when available; an already installed runtime still starts
+if Drive is temporarily unavailable. The model weights download once from
+Hugging Face into `%LOCALAPPDATA%\Readji\TTS Agent\cache\huggingface`.
+
+The package keeps the current API default of `http://localhost:4000`; change it
+at launch with `READJI_TTS_API_URL` when a production endpoint is available.

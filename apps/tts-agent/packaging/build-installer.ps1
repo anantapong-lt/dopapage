@@ -43,8 +43,14 @@ if (-not (Test-Path -LiteralPath $tritonEntryPoints -PathType Leaf)) {
 $tritonMetadataDestination = Split-Path -Leaf $tritonMetadataDirectory
 $entrypoint = Join-Path $PSScriptRoot "entrypoint.py"
 $workerEntrypoint = Join-Path $PSScriptRoot "worker_entrypoint.py"
+$bootstrapEntrypoint = Join-Path $PSScriptRoot "bootstrap_entrypoint.py"
+$bootstrapConfig = Join-Path $PSScriptRoot "bootstrap-config.json"
+$runtimePackager = Join-Path $PSScriptRoot "create-runtime-package.py"
 $distPath = Join-Path $projectRoot "dist"
 $workPath = Join-Path $projectRoot "build"
+$runtimeDistPath = Join-Path $distPath "runtime"
+$bootstrapDistPath = Join-Path $distPath "bootstrap"
+$releasePath = Join-Path $distPath "release"
 
 Push-Location $projectRoot
 try {
@@ -56,7 +62,7 @@ try {
         --collect-all voxcpm `
         --collect-all soundfile `
         --collect-submodules keyring `
-        --distpath $distPath `
+        --distpath $runtimeDistPath `
         --workpath $workPath `
         --specpath $workPath `
         $entrypoint
@@ -72,7 +78,7 @@ try {
         --add-data "$tritonEntryPoints;$tritonMetadataDestination" `
         --collect-all voxcpm `
         --collect-all soundfile `
-        --distpath $distPath `
+        --distpath $runtimeDistPath `
         --workpath $workPath `
         --specpath $workPath `
         $workerEntrypoint
@@ -84,9 +90,31 @@ try {
     # Keep the standalone dist output runnable too. The GUI resolves its
     # console worker relative to its own executable, and Inno Setup copies this
     # complete directory into the installed application folder.
-    $applicationOutput = Join-Path $distPath "Readji TTS Agent"
-    $workerOutput = Join-Path $distPath "Readji TTS Agent Worker"
+    $applicationOutput = Join-Path $runtimeDistPath "Readji TTS Agent"
+    $workerOutput = Join-Path $runtimeDistPath "Readji TTS Agent Worker"
     Copy-Item -LiteralPath $workerOutput -Destination (Join-Path $applicationOutput "worker") -Recurse -Force
+
+    & $PythonCommand $PythonArguments $runtimePackager `
+        --runtime-directory $applicationOutput `
+        --version $version `
+        --output-directory $releasePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Runtime package creation failed with exit code $LASTEXITCODE."
+    }
+
+    # The installer carries only this bootstrap. It downloads the GPU runtime
+    # from the separately hosted manifest at first launch.
+    & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --windowed `
+        --name "Readji TTS Agent" `
+        --paths "src" `
+        --add-data "$bootstrapConfig;." `
+        --distpath $bootstrapDistPath `
+        --workpath $workPath `
+        --specpath $workPath `
+        $bootstrapEntrypoint
+    if ($LASTEXITCODE -ne 0) {
+        throw "Bootstrap PyInstaller build failed with exit code $LASTEXITCODE."
+    }
 
     $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
     if ($null -eq $iscc) {

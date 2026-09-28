@@ -72,7 +72,9 @@ def _load_voxcpm_weights():
     def load():
         return VoxCPM.from_pretrained(
             "openbmb/VoxCPM2", device="cuda", load_denoiser=False,
-            local_files_only=True, optimize=False,
+            # A first-run runtime has no model cache yet. Hugging Face stores
+            # the downloaded weights under HF_HOME for reuse after updates.
+            local_files_only=False, optimize=False,
         )
 
     original_linear_reset = torch.nn.Linear.reset_parameters
@@ -497,6 +499,8 @@ class _LocalVoxCpmRenderer:
             for variable, directory in (
                 ("TORCHINDUCTOR_CACHE_DIR", "torchinductor"),
                 ("TRITON_CACHE_DIR", "triton"),
+                ("HF_HOME", "huggingface"),
+                ("HUGGINGFACE_HUB_CACHE", "huggingface/hub"),
             ):
                 cache_path = Path(os.environ.setdefault(variable, str(cache_root / directory)))
                 cache_path.mkdir(parents=True, exist_ok=True)
