@@ -118,6 +118,12 @@ try {
 
     $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
     if ($null -eq $iscc) {
+        $userInstalledIscc = Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"
+        if (Test-Path -LiteralPath $userInstalledIscc -PathType Leaf) {
+            $iscc = Get-Item -LiteralPath $userInstalledIscc
+        }
+    }
+    if ($null -eq $iscc) {
         throw "Inno Setup 6 is required. Install it, then run this script again."
     }
     & $iscc.Source "/DMyAppVersion=$version" (Join-Path $PSScriptRoot "installer.iss")

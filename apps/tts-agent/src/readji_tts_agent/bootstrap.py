@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 import zipfile
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QVBoxLayout
 
 
 APP_NAME = "Readji TTS Agent"
@@ -23,6 +23,105 @@ CHUNK_SIZE = 1024 * 1024
 
 class BootstrapError(RuntimeError):
     pass
+
+
+def format_size(size: int) -> str:
+    units = ("B", "KB", "MB", "GB", "TB")
+    value = float(size)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            return f"{value:.1f} {unit}" if unit != "B" else f"{int(value)} {unit}"
+        value /= 1024
+    return f"{value:.1f} TB"
+
+
+class RuntimeDownloadDialog(QDialog):
+    """A branded, non-technical first-run runtime installer."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.cancelled = False
+        self.setWindowTitle("กำลังเตรียม Readji TTS Agent")
+        self.setModal(True)
+        self.setFixedSize(560, 310)
+        self.setObjectName("runtimeDownloadDialog")
+        self.setWindowFlag(Qt.WindowType.WindowCloseButtonHint, False)
+        self.setStyleSheet("""
+            QDialog#runtimeDownloadDialog { background: #fffdfa; color: #2d1d20; }
+            QLabel { background: transparent; color: #2d1d20; }
+            QFrame#downloadCard { background: #f7ece8; border: 1px solid #e5dfd9; border-radius: 12px; }
+            QProgressBar { min-height: 10px; border: 0; border-radius: 5px; background: #ede9e5; text-align: center; }
+            QProgressBar::chunk { border-radius: 5px; background: #ff6f63; }
+            QPushButton#cancelButton { min-height: 34px; padding: 0 18px; background: #fffdfa; color: #2d1d20; border: 1px solid #d8cec7; border-radius: 8px; }
+            QPushButton#cancelButton:hover { background: #f7ece8; border-color: #ff6f63; }
+            QPushButton#cancelButton:disabled { background: #f0efeb; color: #9a8f91; border-color: #e5dfd9; }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(30, 26, 30, 24)
+        layout.setSpacing(14)
+
+        brand = QLabel("READJI  /  TTS AGENT", self)
+        brand.setStyleSheet("font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #ff6f63;")
+        layout.addWidget(brand)
+
+        title = QLabel("กำลังเตรียมระบบสร้างเสียง", self)
+        title.setStyleSheet("font-size: 22px; font-weight: 700;")
+        layout.addWidget(title)
+
+        subtitle = QLabel("กำลังติดตั้งส่วนประกอบสำหรับประมวลผลเสียงครั้งแรก\nคุณสามารถใช้งานได้ทันทีเมื่อขั้นตอนนี้เสร็จสิ้น", self)
+        subtitle.setStyleSheet("font-size: 13px; color: #74676a; line-height: 1.45;")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        card = QFrame(self)
+        card.setObjectName("downloadCard")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 13, 16, 13)
+        card_layout.setSpacing(7)
+        self.status = QLabel("กำลังเชื่อมต่อเพื่อดาวน์โหลด runtime...", card)
+        self.status.setStyleSheet("font-size: 13px; font-weight: 600;")
+        card_layout.addWidget(self.status)
+        self.transfer = QLabel("กำลังคำนวณขนาดไฟล์", card)
+        self.transfer.setStyleSheet("font-size: 12px; color: #74676a;")
+        card_layout.addWidget(self.transfer)
+        layout.addWidget(card)
+
+        self.progress = QProgressBar(self)
+        self.progress.setRange(0, 100)
+        self.progress.setValue(0)
+        self.progress.setTextVisible(False)
+        layout.addWidget(self.progress)
+
+        bottom = QHBoxLayout()
+        self.percent = QLabel("0%", self)
+        self.percent.setStyleSheet("font-size: 12px; font-weight: 700; color: #ff6f63;")
+        bottom.addWidget(self.percent)
+        bottom.addStretch(1)
+        self.cancel_button = QPushButton("ยกเลิก", self)
+        self.cancel_button.setObjectName("cancelButton")
+        self.cancel_button.clicked.connect(self.cancel)
+        bottom.addWidget(self.cancel_button)
+        layout.addLayout(bottom)
+
+    def cancel(self) -> None:
+        self.cancelled = True
+        self.cancel_button.setEnabled(False)
+        self.status.setText("กำลังยกเลิกการดาวน์โหลด...")
+
+    def set_download_progress(self, written: int, total: int) -> None:
+        percent = min(99, int(written * 100 / total)) if total else 0
+        self.progress.setValue(percent)
+        self.percent.setText(f"{percent}%")
+        self.status.setText("กำลังดาวน์โหลด runtime สำหรับประมวลผลเสียง")
+        self.transfer.setText(f"ดาวน์โหลดแล้ว {format_size(written)} จาก {format_size(total)}")
+
+    def set_installing(self) -> None:
+        self.cancel_button.setEnabled(False)
+        self.progress.setValue(99)
+        self.percent.setText("99%")
+        self.status.setText("กำลังติดตั้งและตรวจสอบความพร้อมของ runtime")
+        self.transfer.setText("ขั้นตอนนี้อาจใช้เวลาสักครู่ กรุณาอย่าปิดโปรแกรม")
 
 
 def data_root() -> Path:
@@ -108,7 +207,7 @@ def validate_runtime(manifest: dict[str, Any]) -> tuple[str, str, str]:
     return version, url, digest.lower()
 
 
-def download_runtime(url: str, destination: Path, expected_sha256: str, progress: QProgressDialog) -> None:
+def download_runtime(url: str, destination: Path, expected_sha256: str, progress: RuntimeDownloadDialog) -> None:
     digest = hashlib.sha256()
     temporary = destination.with_suffix(".part")
     try:
@@ -124,10 +223,9 @@ def download_runtime(url: str, destination: Path, expected_sha256: str, progress
                 digest.update(block)
                 written += len(block)
                 if total:
-                    progress.setLabelText(f"กำลังดาวน์โหลด runtime... {written / 1024 / 1024:.0f} / {total / 1024 / 1024:.0f} MB")
-                    progress.setValue(min(99, int(written * 100 / total)))
+                    progress.set_download_progress(written, total)
                 QApplication.processEvents()
-                if progress.wasCanceled():
+                if progress.cancelled:
                     raise BootstrapError("ยกเลิกการดาวน์โหลด runtime แล้ว")
         if digest.hexdigest().lower() != expected_sha256:
             raise BootstrapError("ตรวจสอบ SHA-256 ของ runtime ไม่ผ่าน กรุณาลองใหม่")
@@ -181,19 +279,18 @@ def ensure_runtime() -> Path:
     if executable.is_file():
         return executable
 
-    progress = QProgressDialog("กำลังเตรียม runtime สำหรับประมวลผลเสียง...", "ยกเลิก", 0, 100)
-    progress.setWindowTitle("กำลังเตรียม Readji TTS Agent")
+    progress = RuntimeDownloadDialog()
     progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-    progress.setMinimumDuration(0)
     progress.show()
     with tempfile.TemporaryDirectory(prefix="readji-tts-runtime-") as temporary_directory:
         archive = Path(temporary_directory) / "runtime.zip"
         download_runtime(download_url, archive, digest, progress)
-        progress.setLabelText("กำลังติดตั้ง runtime...")
-        progress.setValue(99)
+        progress.set_installing()
         QApplication.processEvents()
         extract_runtime(archive, target)
-    progress.setValue(100)
+    progress.progress.setValue(100)
+    progress.percent.setText("100%")
+    progress.accept()
     (data_root() / "runtime-state.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
     return executable
 
