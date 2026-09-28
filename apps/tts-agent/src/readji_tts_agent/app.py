@@ -1366,6 +1366,8 @@ class JobsPage(QWidget):
             self.preload_model()
             return
         # Keep the request active until the queue is empty or processing stops.
+        if self.ffmpeg_setup_dialog is not None and self.ffmpeg_setup_dialog.isVisible():
+            self.ffmpeg_setup_dialog.accept()
         self._begin_render()
 
     def _cancel_pending_start(self) -> None:
