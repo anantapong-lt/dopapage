@@ -19,6 +19,10 @@ from threading import Event, Lock, Thread
 import time
 from typing import Callable
 
+# Worker processes are console applications today, but keeping this on also
+# makes model loading safe if they are ever packaged without stdout.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
 from .ffmpeg_setup import verify_ffmpeg
 
 
@@ -35,6 +39,24 @@ INFERENCE_TIMESTEPS = 8
 MP3_BITRATE = "96k"
 VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
 VOXCPM_MODEL_REVISION = "32279effe8c19989596f05d353d1447f51d9e915"
+VOXCPM_REQUIRED_FILES = (
+    "config.json",
+    "model.safetensors",
+    "audiovae.pth",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "tokenization_voxcpm2.py",
+)
+
+
+def voxcpm_model_directory() -> Path:
+    directory = (
+        Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        / "Readji" / "TTS Agent" / "models" / f"VoxCPM2-{VOXCPM_MODEL_REVISION}"
+    )
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
 
 
 def performance_logger() -> logging.Logger:
@@ -68,22 +90,22 @@ def _load_voxcpm_weights():
     """Skip disposable Linear/Embedding initialization in the isolated worker."""
     import gc
     import torch
-    from huggingface_hub import snapshot_download
+    from huggingface_hub import hf_hub_download
     from voxcpm import VoxCPM
     from voxcpm.model.voxcpm2 import VoxCPM2Model
 
     def load():
-        local_data = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-        cache_dir = local_data / "Readji" / "TTS Agent" / "cache" / "huggingface"
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        model_path = snapshot_download(
-            VOXCPM_MODEL_ID,
-            revision=VOXCPM_MODEL_REVISION,
-            cache_dir=str(cache_dir),
-            local_files_only=False,
-        )
+        model_path = voxcpm_model_directory()
+        for filename in VOXCPM_REQUIRED_FILES:
+            if not (model_path / filename).is_file():
+                hf_hub_download(
+                    VOXCPM_MODEL_ID,
+                    filename,
+                    revision=VOXCPM_MODEL_REVISION,
+                    local_dir=str(model_path),
+                )
         return VoxCPM.from_pretrained(
-            model_path, device="cuda", load_denoiser=False, optimize=False,
+            str(model_path), device="cuda", load_denoiser=False, optimize=False,
         )
 
     original_linear_reset = torch.nn.Linear.reset_parameters
@@ -312,7 +334,10 @@ class VoxCpmRenderer:
 
     def __init__(self, voices_root: Path) -> None:
         self.voices_root = voices_root
-        self.compile_enabled = os.environ.get("READJI_TTS_COMPILE", "1") != "0"
+        # torch.compile can access-violate inside the frozen CUDA worker on
+        # some Windows driver/runtime combinations. Keep the stable eager path
+        # as the default; advanced users can explicitly opt in with =1.
+        self.compile_enabled = os.environ.get("READJI_TTS_COMPILE", "0") == "1"
         self._process: subprocess.Popen | None = None
         self._reader: Thread | None = None
         self._messages: Queue = Queue()
@@ -338,7 +363,7 @@ class VoxCpmRenderer:
             # The GUI binary is built with PyInstaller --windowed, which makes
             # stdout unavailable.  Use the separately packaged console worker
             # so its JSON IPC stream remains connected to this process.
-            worker = Path(sys.executable).parent / "worker" / "Readji TTS Agent Worker.exe"
+            worker = Path(sys.executable).parent / "worker" / "Dopapage Worker.exe"
             if not worker.is_file():
                 raise RenderError("ไม่พบตัวประมวลผลเสียงของแอป กรุณาติดตั้ง TTS Agent ใหม่")
             command = [str(worker), *worker_arguments]
@@ -430,7 +455,7 @@ class VoxCpmRenderer:
             detail = f"{detail}\n{worker_output[-1600:]}"
         return RenderError(
             f"ตัวประมวลผลเสียงหยุดทำงาน ({detail}) แอปหลักยังทำงานอยู่ "
-            "หากเกิดระหว่าง compile ให้เปิดแอปใหม่ด้วย READJI_TTS_COMPILE=0"
+            "ค่าเริ่มต้นของแอปปิด torch.compile เพื่อความเสถียร"
         )
 
     def preload(self) -> None:

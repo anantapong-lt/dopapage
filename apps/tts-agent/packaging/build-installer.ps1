@@ -55,7 +55,7 @@ $releasePath = Join-Path $distPath "release"
 Push-Location $projectRoot
 try {
     & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --windowed `
-        --name "Readji TTS Agent" `
+        --name "Dopapage" `
         --paths "src" `
         --add-data "$assetsRoot;assets" `
         --collect-all qfluentwidgets `
@@ -72,7 +72,7 @@ try {
     }
 
     & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --console `
-        --name "Readji TTS Agent Worker" `
+        --name "Dopapage Worker" `
         --paths "src" `
         --copy-metadata triton-windows `
         --add-data "$tritonEntryPoints;$tritonMetadataDestination" `
@@ -90,8 +90,8 @@ try {
     # Keep the standalone dist output runnable too. The GUI resolves its
     # console worker relative to its own executable, and Inno Setup copies this
     # complete directory into the installed application folder.
-    $applicationOutput = Join-Path $runtimeDistPath "Readji TTS Agent"
-    $workerOutput = Join-Path $runtimeDistPath "Readji TTS Agent Worker"
+    $applicationOutput = Join-Path $runtimeDistPath "Dopapage"
+    $workerOutput = Join-Path $runtimeDistPath "Dopapage Worker"
     Copy-Item -LiteralPath $workerOutput -Destination (Join-Path $applicationOutput "worker") -Recurse -Force
 
     & $PythonCommand $PythonArguments $runtimePackager `
@@ -105,7 +105,7 @@ try {
     # The installer carries only this bootstrap. It downloads the GPU runtime
     # from the separately hosted manifest at first launch.
     & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --windowed `
-        --name "Readji TTS Agent" `
+        --name "Dopapage" `
         --paths "src" `
         --add-data "$bootstrapConfig;." `
         --distpath $bootstrapDistPath `

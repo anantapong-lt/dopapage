@@ -1,6 +1,6 @@
-#define MyAppName "Readji TTS Agent"
-#define MyAppPublisher "Readji"
-#define MyAppExeName "Readji TTS Agent.exe"
+#define MyAppName "Dopapage"
+#define MyAppPublisher "Dopapage"
+#define MyAppExeName "Dopapage.exe"
 #ifndef MyAppVersion
   #define MyAppVersion "0.1.0"
 #endif
@@ -10,13 +10,13 @@ AppId={{DB1E2025-86D0-4AB3-AD07-450EF1FA91C4}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\Programs\{#MyAppName}
+DefaultDirName={localappdata}\Programs\Dopapage
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist\installer
-OutputBaseFilename=Readji-TTS-Agent-Setup-{#MyAppVersion}
+OutputBaseFilename=Dopapage-Setup-{#MyAppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -30,7 +30,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 ; The GPU runtime is downloaded by the bootstrap on first launch.
-Source: "..\dist\bootstrap\Readji TTS Agent\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\bootstrap\Dopapage\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

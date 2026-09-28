@@ -25,11 +25,11 @@ def main() -> None:
     arguments = parser.parse_args()
 
     runtime = arguments.runtime_directory.resolve()
-    if not (runtime / "Readji TTS Agent.exe").is_file():
+    if not (runtime / "Dopapage.exe").is_file():
         raise SystemExit(f"Runtime executable is missing: {runtime}")
 
     arguments.output_directory.mkdir(parents=True, exist_ok=True)
-    archive = arguments.output_directory / f"Readji-TTS-Agent-runtime-{arguments.version}.zip"
+    archive = arguments.output_directory / f"Dopapage-runtime-{arguments.version}.zip"
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED, allowZip64=True) as output:
         for file in runtime.rglob("*"):
             if file.is_file():
@@ -39,7 +39,7 @@ def main() -> None:
         "version": arguments.version,
         "runtime": {
             "version": arguments.version,
-            "url": "https://drive.google.com/file/d/177z0-7eyBCXYIAM2qisdJnMILp_PCdpO/view?usp=sharing",
+            "url": "https://drive.google.com/file/d/1la2ZrO6sfscxZr0hB-zYKdwUbk0oGNFH/view?usp=sharing",
             "sha256": sha256(archive),
             "size": archive.stat().st_size,
             "archive": archive.name,

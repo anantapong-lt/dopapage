@@ -17,7 +17,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QVBoxLayout
 
 
-APP_NAME = "Readji TTS Agent"
+APP_NAME = "Dopapage"
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -41,7 +41,7 @@ class RuntimeDownloadDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
         self.cancelled = False
-        self.setWindowTitle("กำลังเตรียม Readji TTS Agent")
+        self.setWindowTitle("กำลังเตรียม Dopapage")
         self.setModal(True)
         self.setFixedSize(560, 310)
         self.setObjectName("runtimeDownloadDialog")
@@ -61,7 +61,7 @@ class RuntimeDownloadDialog(QDialog):
         layout.setContentsMargins(30, 26, 30, 24)
         layout.setSpacing(14)
 
-        brand = QLabel("READJI  /  TTS AGENT", self)
+        brand = QLabel("DOPAPAGE  /  TTS AGENT", self)
         brand.setStyleSheet("font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #ff6f63;")
         layout.addWidget(brand)
 
@@ -173,7 +173,7 @@ def google_drive_download_url(url: str) -> str:
 
 def fetch_json(url: str) -> dict[str, Any]:
     try:
-        request = Request(google_drive_download_url(url), headers={"User-Agent": "Readji-TTS-Agent"})
+        request = Request(google_drive_download_url(url), headers={"User-Agent": "Dopapage"})
         with urlopen(request, timeout=30) as response:
             value = json.loads(response.read().decode("utf-8"))
     except (OSError, ValueError) as error:
@@ -189,7 +189,7 @@ def existing_runtime() -> Path | None:
         version = json.loads(state.read_text(encoding="utf-8")).get("version")
     except (OSError, ValueError, AttributeError):
         return None
-    executable = data_root() / "runtime" / str(version) / "Readji TTS Agent.exe"
+    executable = data_root() / "runtime" / str(version) / "Dopapage.exe"
     return executable if executable.is_file() else None
 
 
@@ -211,7 +211,7 @@ def download_runtime(url: str, destination: Path, expected_sha256: str, progress
     digest = hashlib.sha256()
     temporary = destination.with_suffix(".part")
     try:
-        request = Request(google_drive_download_url(url), headers={"User-Agent": "Readji-TTS-Agent"})
+        request = Request(google_drive_download_url(url), headers={"User-Agent": "Dopapage"})
         with urlopen(request, timeout=60) as response, temporary.open("wb") as output:
             content_type = response.headers.get_content_type()
             if content_type == "text/html":
@@ -246,7 +246,7 @@ def extract_runtime(archive: Path, destination: Path) -> None:
                 if not target.is_relative_to(staging.resolve()):
                     raise BootstrapError("runtime archive มีพาธที่ไม่ปลอดภัย")
                 package.extract(entry, staging)
-        if not (staging / "Readji TTS Agent.exe").is_file():
+        if not (staging / "Dopapage.exe").is_file():
             raise BootstrapError("runtime archive ไม่มีไฟล์โปรแกรมหลัก")
         shutil.rmtree(destination, ignore_errors=True)
         staging.replace(destination)
@@ -275,7 +275,7 @@ def ensure_runtime() -> Path:
         raise
 
     target = data_root() / "runtime" / version
-    executable = target / "Readji TTS Agent.exe"
+    executable = target / "Dopapage.exe"
     if executable.is_file():
         return executable
 

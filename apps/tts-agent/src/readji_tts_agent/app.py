@@ -7,13 +7,18 @@ from pathlib import Path
 import platform
 import sys
 import tempfile
+import traceback
 from threading import Event
 import time
 import uuid
 
+# The frozen desktop executable has no stdout stream. Hugging Face otherwise
+# creates a tqdm progress bar that writes to None and aborts the download.
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
 import httpx
 from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, Qt, QSettings, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPixmap
+from PySide6.QtGui import QColor, QPainter
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CheckBox, ComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, Theme, setCustomStyleSheet, setTheme, setThemeColor
 
@@ -28,6 +33,15 @@ VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
 # lookup. Some networks return an empty response for that lookup even though
 # the model files themselves are publicly downloadable.
 VOXCPM_MODEL_REVISION = "32279effe8c19989596f05d353d1447f51d9e915"
+VOXCPM_REQUIRED_FILES = (
+    "config.json",
+    "model.safetensors",
+    "audiovae.pth",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "tokenization_voxcpm2.py",
+)
 PROGRESS_REPORT_INTERVAL = 5
 JOB_STATUS_POLL_SECONDS = 3
 CHAPTER_PAGE_SIZE = 20
@@ -64,6 +78,7 @@ WEB_CONTROL_STYLE = """
     PrimaryPushButton:focus {{ border-color: {foreground}; }}
     PrimaryPushButton:disabled {{ background: #ffaaa2; color: {card}; border-color: #ffaaa2; }}
 """.format_map(WEB_COLORS)
+
 TTS_JOB_STATUS = {
     "QUEUED": "queued",
     "PROCESSING": "processing",
@@ -132,13 +147,25 @@ class ChaptersTableModel(QAbstractTableModel):
                 return row
         return None
 
-    def voice_for(self, chapter: dict) -> str:
+    @staticmethod
+    def saved_voice_for(chapter: dict) -> str:
         saved_voice = chapter.get("latest_voice_slot")
         if saved_voice not in VOICE_LABELS:
             saved_voice = VOICE_SLOT["FEMALE"]
+        return saved_voice
+
+    def voice_for(self, chapter: dict) -> str:
+        saved_voice = self.saved_voice_for(chapter)
         if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
             return saved_voice
         return self.selected_voices.get(chapter["chapter_id"], saved_voice)
+
+    def has_voice_change(self, chapter: dict) -> bool:
+        """Return whether a completed chapter has a newly selected voice."""
+        if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
+            return False
+        selected_voice = self.selected_voices.get(chapter["chapter_id"])
+        return selected_voice is not None and selected_voice != self.saved_voice_for(chapter)
 
     def flags(self, index: QModelIndex):
         flags = super().flags(index)
@@ -153,8 +180,17 @@ class ChaptersTableModel(QAbstractTableModel):
                 or role != Qt.ItemDataRole.EditRole or value not in VOICE_LABELS
                 or not (self.flags(index) & Qt.ItemFlag.ItemIsEditable)):
             return False
-        self.selected_voices[self.chapter_at(index.row())["chapter_id"]] = value
-        self.dataChanged.emit(index, index, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole])
+        chapter = self.chapter_at(index.row())
+        chapter_id = chapter["chapter_id"]
+        if value == self.saved_voice_for(chapter):
+            self.selected_voices.pop(chapter_id, None)
+        else:
+            self.selected_voices[chapter_id] = value
+        self.dataChanged.emit(
+            index,
+            self.index(index.row(), TABLE_COLUMN["ACTION"]),
+            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole],
+        )
         return True
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
@@ -263,6 +299,8 @@ class ChapterTableDelegate(TableItemDelegate):
             return
         job_status = chapter.get("latest_job_status")
         if job_status not in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
+            if job_status == TTS_JOB_STATUS["DONE"] and not model.has_voice_change(chapter):
+                return
             label = "สร้างใหม่" if job_status == TTS_JOB_STATUS["DONE"] else "เข้าคิว"
             self._paint_pill(painter, self._content_rect(option.rect), label, WEB_COLORS["primary"], WEB_COLORS["primary_foreground"])
 
@@ -282,6 +320,9 @@ class ChapterTableDelegate(TableItemDelegate):
             return super().editorEvent(event, model, option, index)
         chapter = model.chapter_at(index.row())
         if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
+            return False
+        if (chapter.get("latest_job_status") == TTS_JOB_STATUS["DONE"]
+                and not model.has_voice_change(chapter)):
             return False
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             if self._content_rect(option.rect).contains(event.position().toPoint()):
@@ -308,40 +349,49 @@ class LoginThread(QThread):
             self.failed.emit(str(error))
 
 
-def voxcpm_cache_directory() -> Path:
-    directory = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Readji" / "TTS Agent" / "cache" / "huggingface"
+def voxcpm_model_directory() -> Path:
+    """Return the stable, normal-directory location of the VoxCPM2 files.
+
+    Hugging Face's snapshot cache relies on symlink-style metadata.  That cache
+    can fail in frozen Windows applications when its repository lookup returns
+    no metadata, despite every model file being public.  A normal local model
+    directory is resilient to that failure and can be resumed file by file.
+    """
+    directory = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "Readji" / "TTS Agent" / "models" / f"VoxCPM2-{VOXCPM_MODEL_REVISION}"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 
 
 def is_voxcpm_model_cached() -> bool:
-    try:
-        from huggingface_hub import snapshot_download
-        snapshot_download(
-            VOXCPM_MODEL_ID,
-            revision=VOXCPM_MODEL_REVISION,
-            cache_dir=str(voxcpm_cache_directory()),
-            local_files_only=True,
-        )
-        return True
-    except Exception:
-        return False
+    directory = voxcpm_model_directory()
+    return all((directory / filename).is_file() for filename in VOXCPM_REQUIRED_FILES)
 
 
 class ModelDownloadThread(QThread):
     completed = Signal()
     failed = Signal(str)
+    status_changed = Signal(str)
 
     def run(self) -> None:
         try:
-            from huggingface_hub import snapshot_download
-            snapshot_download(
-                VOXCPM_MODEL_ID,
-                revision=VOXCPM_MODEL_REVISION,
-                cache_dir=str(voxcpm_cache_directory()),
-            )
+            from huggingface_hub import hf_hub_download
+
+            directory = voxcpm_model_directory()
+            for index, filename in enumerate(VOXCPM_REQUIRED_FILES, start=1):
+                self.status_changed.emit(f"กำลังดาวน์โหลดไฟล์ {index}/{len(VOXCPM_REQUIRED_FILES)}: {filename}")
+                hf_hub_download(
+                    VOXCPM_MODEL_ID,
+                    filename,
+                    revision=VOXCPM_MODEL_REVISION,
+                    local_dir=str(directory),
+                )
             self.completed.emit()
         except Exception as error:
+            try:
+                log_path = voxcpm_model_directory().parent / "model-download-error.log"
+                log_path.write_text(traceback.format_exc(), encoding="utf-8")
+            except OSError:
+                pass
             self.failed.emit(f"{type(error).__name__}: {error}")
 
 
@@ -351,7 +401,11 @@ class ModelDownloadDialog(QDialog):
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setWindowTitle("กำลังเตรียม VoxCPM2")
-        self.setModal(True)
+        # Downloading is already on a QThread. Do not lock the entire app
+        # while several gigabytes are transferred; the queue-start controls
+        # are disabled separately until the model is ready.
+        self.setModal(False)
+        self.setWindowModality(Qt.WindowModality.NonModal)
         self.setFixedWidth(460)
         self.setWindowFlag(Qt.WindowCloseButtonHint, False)
         self.setObjectName("modelDownloadDialog")
@@ -380,6 +434,7 @@ class ModelDownloadDialog(QDialog):
         self.thread = ModelDownloadThread()
         self.thread.completed.connect(self._completed)
         self.thread.failed.connect(self._failed)
+        self.thread.status_changed.connect(self.status.setText)
 
     def start(self) -> None:
         self.thread.start()
@@ -549,7 +604,10 @@ class ModelPreparingDialog(QDialog):
         super().__init__(parent)
         self.setObjectName("modelPreparingDialog")
         self.setWindowTitle("กำลังเตรียมโมเดลเสียง")
-        self.setModal(True)
+        # GPU preload runs in a background thread, so users should still be
+        # able to move the window or review the queue while it completes.
+        self.setModal(False)
+        self.setWindowModality(Qt.WindowModality.NonModal)
         self.setFixedWidth(480)
         self.setStyleSheet("QDialog#modelPreparingDialog { background: #fafafa; } QLabel { color: #18181b; }")
         layout = QVBoxLayout(self)
@@ -647,23 +705,9 @@ class LoginPage(QWidget):
         logo = QLabel(card)
         logo.setAlignment(Qt.AlignCenter)
         logo.setFixedHeight(128)
-        logo.setAccessibleName("Readji")
-        logo_path = application_root() / "assets" / "readji-logo-full.png"
-        logo_pixmap = QPixmap(str(logo_path))
-        if not logo_pixmap.isNull():
-            # The Web uses this image as an alpha mask filled with --primary.
-            painter = QPainter(logo_pixmap)
-            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
-            painter.fillRect(logo_pixmap.rect(), QColor("#ff6f63"))
-            painter.end()
-            logo_pixmap = logo_pixmap.scaledToHeight(
-                round(128 * self.devicePixelRatioF()), Qt.TransformationMode.SmoothTransformation,
-            )
-            logo_pixmap.setDevicePixelRatio(self.devicePixelRatioF())
-            logo.setPixmap(logo_pixmap)
-        else:
-            logo.setText("READJI")
-            logo.setStyleSheet("color: #ff6f63; font-size: 34px; font-weight: 800;")
+        logo.setAccessibleName("Dopapage")
+        logo.setText("DOPAPAGE")
+        logo.setStyleSheet("color: #ff6f63; font-size: 34px; font-weight: 800; letter-spacing: 2px;")
         layout.addWidget(logo)
         layout.addSpacing(28)
         divider = QFrame(card)
@@ -671,7 +715,7 @@ class LoginPage(QWidget):
         divider.setStyleSheet("background: #e5dfd9; border: none;")
         layout.addWidget(divider)
         layout.addSpacing(28)
-        heading = SubtitleLabel("เข้าสู่ระบบ Readji TTS Agent", card)
+        heading = SubtitleLabel("เข้าสู่ระบบ Dopapage TTS Agent", card)
         heading.setAlignment(Qt.AlignCenter)
         heading.setStyleSheet("color: #2d1d20; font-size: 18px; font-weight: 700;")
         layout.addWidget(heading)
@@ -1090,7 +1134,6 @@ class JobsPage(QWidget):
         self.story_filter.addItem("เลือกเรื่องก่อนแสดงตอน", userData=None)
         self.story_filter.currentIndexChanged.connect(self._story_changed)
         filters.addWidget(self.story_filter, 1)
-        filters.addWidget(BodyLabel("สถานะเสียง", self))
         self.audio_status_filter = ComboBox(self)
         self.audio_status_filter.setMinimumWidth(180)
         self.audio_status_filter.addItem("ยังไม่มีเสียง", userData="missing")
@@ -1135,17 +1178,39 @@ class JobsPage(QWidget):
         pagination.addWidget(self.next_button)
         layout.addLayout(pagination)
         self._update_pagination(0)
-        self.progress = ProgressBar(self); self.status = BodyLabel("กำลังรอเตรียมโมเดลเสียง"); layout.addWidget(self.progress); layout.addWidget(self.status)
+        self.progress = ProgressBar(self)
+        self.status_icon = QLabel("✓", self)
+        self.status_icon.setStyleSheet("color: #16a34a; font-size: 18px; font-weight: 700; background: transparent;")
+        self.status_icon.hide()
+        self.status = BodyLabel("กำลังรอเตรียมโมเดลเสียง", self)
+        status_row = QHBoxLayout()
+        status_row.setContentsMargins(0, 0, 0, 0)
+        status_row.setSpacing(6)
+        status_row.addWidget(self.status_icon)
+        status_row.addWidget(self.status)
+        status_row.addStretch(1)
+        layout.addWidget(self.progress)
+        layout.addLayout(status_row)
         self.progress.setCustomBarColor(WEB_COLORS["primary"], WEB_COLORS["primary"])
         for control in (self.refresh_button, self.render_button, self.story_filter,
                         self.cancel_all_button, self.previous_button, self.next_button):
             setCustomStyleSheet(control, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        setCustomStyleSheet(self.audio_status_filter, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
         for label in (self.page_label, self.status):
             label.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent;")
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._resize_table_columns()
+
+    def _show_ready_status(self) -> None:
+        self.status_icon.show()
+        self.status.setStyleSheet("color: #16a34a; background: transparent;")
+        self.status.setText("พร้อมใช้งาน")
+
+    def _hide_ready_status(self) -> None:
+        self.status_icon.hide()
+        self.status.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent;")
 
     def _resize_table_columns(self) -> None:
         available = max(self.table.viewport().width(), 1)
@@ -1161,6 +1226,7 @@ class JobsPage(QWidget):
     def preload_model(self) -> None:
         if self.shutdown_requested or not self.renderer or self.preload_thread is not None:
             return
+        self._hide_ready_status()
         if not is_voxcpm_model_cached():
             if self.model_download_dialog is not None and self.model_download_dialog.thread.isRunning():
                 self.model_download_dialog.show()
@@ -1199,7 +1265,7 @@ class JobsPage(QWidget):
     def _model_preloaded(self) -> None:
         self.model_ready = True
         self.render_button.setEnabled(not self.cancelling_all)
-        self.status.setText("VoxCPM2 พร้อมใช้งานบน GPU ใน process แยก")
+        self._show_ready_status()
         if self.model_preparing_dialog is not None:
             self.model_preparing_dialog.accept()
         if self.ffmpeg_setup_dialog is not None and self.ffmpeg_setup_dialog.isVisible():
@@ -1214,6 +1280,7 @@ class JobsPage(QWidget):
             self.ffmpeg_setup_dialog.accept()
         self.model_ready = False
         self.render_button.setEnabled(not self.cancelling_all)
+        self._hide_ready_status()
         self.status.setText("เตรียมโมเดลเสียงไม่สำเร็จ")
         InfoBar.error("โหลด VoxCPM2 ไม่สำเร็จ", message, parent=self, position=InfoBarPosition.TOP)
     def set_client(self, client: ApiClient, name: str) -> None:
@@ -1419,6 +1486,7 @@ class JobsPage(QWidget):
 
     def _begin_render(self) -> None:
         if self.cancelling_all or not self.client or not self.renderer or (self.thread and self.thread.isRunning()): return
+        self._hide_ready_status()
         self.rendering_chapter_id = None
         self.rendering_job_id = None
         self.rendering_progress = 0
@@ -1621,7 +1689,8 @@ class JobsPage(QWidget):
 
 class MainWindow(FluentWindow):
     def __init__(self) -> None:
-        super().__init__(); self.settings = QSettings("Readji", "TTS Agent"); self.login_page = LoginPage(); self.jobs_page = JobsPage(self.settings)
+        super().__init__(); self.settings = QSettings("Dopapage", "TTS Agent"); self.login_page = LoginPage(); self.jobs_page = JobsPage(self.settings)
+        self.setWindowTitle("Dopapage")
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor(WEB_COLORS["background"], WEB_COLORS["background"])
         navigation_style = """
