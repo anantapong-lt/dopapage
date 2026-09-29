@@ -255,6 +255,17 @@ def extract_runtime(archive: Path, destination: Path) -> None:
         raise
 
 
+def remove_old_runtimes(active_version: str) -> None:
+    """Free disk space only after a newly installed runtime is verified."""
+    runtime_root = data_root() / "runtime"
+    if not runtime_root.is_dir():
+        return
+    for candidate in runtime_root.iterdir():
+        if candidate.name == active_version or not candidate.is_dir():
+            continue
+        shutil.rmtree(candidate, ignore_errors=True)
+
+
 def ensure_runtime() -> Path:
     config = load_config()
     manifest_url = os.environ.get("READJI_TTS_RUNTIME_MANIFEST_URL") or config.get("manifest_url")
@@ -292,6 +303,7 @@ def ensure_runtime() -> Path:
     progress.percent.setText("100%")
     progress.accept()
     (data_root() / "runtime-state.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
+    remove_old_runtimes(version)
     return executable
 
 
