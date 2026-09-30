@@ -195,7 +195,7 @@ export default function SystemPage() {
         <div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-48" />)}</div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid items-start gap-4 md:grid-cols-3">
             <MetricCard icon={Cpu} label="CPU" value={`${metrics.cpu.usage_percent.toFixed(1)}%`} detail={`${metrics.cpu.cores} vCPU`} percent={Math.round(metrics.cpu.usage_percent)} />
             <MetricCard icon={MemoryStick} label="RAM" value={formatBytes(metrics.memory.used_bytes)} detail={`จาก ${formatBytes(metrics.memory.total_bytes)} · ว่าง ${formatBytes(metrics.memory.available_bytes)}`} percent={memoryPercent} />
             <MetricCard icon={HardDrive} label="Storage" value={formatBytes(metrics.storage.used_bytes)} detail={`จาก ${formatBytes(metrics.storage.total_bytes)} · ว่าง ${formatBytes(metrics.storage.available_bytes)}`} percent={storagePercent}>
