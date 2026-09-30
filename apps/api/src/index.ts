@@ -57,7 +57,7 @@ const app = new Elysia()
     const duration = Date.now() - (requestStartedAt.get(request) ?? Date.now())
     const status = typeof set.status === 'number' ? set.status : 200
     const message = `[request] ${request.method} ${url.pathname} ${status} ${duration}ms`
-    writeSystemLog(status, message)
+    void writeSystemLog(status, message).catch((error) => console.error('Unable to store system log', error))
     console.log(formatRequestLog(status, message))
   })
   .use(
