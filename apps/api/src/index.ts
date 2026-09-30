@@ -30,6 +30,7 @@ import { ttsAgentRoutes } from './modules/tts-agent/tts-agent.routes'
 import { localAssetRoutes } from './modules/assets/local-asset.routes'
 
 const CHAPTER_PUBLISH_INTERVAL_MS = 60_000
+const requestStartedAt = new WeakMap<Request, number>()
 
 async function runChapterPublisher() {
   try {
@@ -41,6 +42,15 @@ async function runChapterPublisher() {
 }
 //asd
 const app = new Elysia()
+  .onRequest(({ request }) => {
+    requestStartedAt.set(request, Date.now())
+  })
+  .onAfterResponse(({ request, set }) => {
+    const url = new URL(request.url)
+    const duration = Date.now() - (requestStartedAt.get(request) ?? Date.now())
+    const status = set.status ?? 200
+    console.log(`[request] ${request.method} ${url.pathname} ${status} ${duration}ms`)
+  })
   .use(
     cors({
       origin: [env.WEB_ORIGIN, env.ADMIN_ORIGIN],
