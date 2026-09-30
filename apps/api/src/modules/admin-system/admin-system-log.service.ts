@@ -1,11 +1,9 @@
-import { randomUUID } from 'node:crypto'
 import { appendFile, mkdir, readFile, readdir, unlink } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 export type SystemLogLevel = 'success' | 'redirect' | 'client_error' | 'server_error'
 
 export type SystemLog = {
-  id: string
   timestamp: string
   level: SystemLogLevel
   status_code: number
@@ -43,8 +41,7 @@ function levelFor(statusCode: number): SystemLogLevel {
 function parseLog(value: string): SystemLog | null {
   try {
     const log = JSON.parse(value) as Partial<SystemLog>
-    return typeof log.id === 'string'
-      && typeof log.timestamp === 'string'
+    return typeof log.timestamp === 'string'
       && typeof log.message === 'string'
       && typeof log.status_code === 'number'
       && (log.level === 'success' || log.level === 'redirect' || log.level === 'client_error' || log.level === 'server_error')
@@ -85,7 +82,6 @@ async function removeExpiredLogs(today: string) {
 export async function writeSystemLog(statusCode: number, message: string) {
   const timestamp = new Date()
   const log: SystemLog = {
-    id: randomUUID(),
     timestamp: timestamp.toISOString(),
     level: levelFor(statusCode),
     status_code: statusCode,

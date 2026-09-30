@@ -27,7 +27,6 @@ type SystemMetrics = {
 }
 type LogStatus = 'all' | '2xx' | '3xx' | '4xx' | '5xx'
 type SystemLog = {
-  id: string
   timestamp: string
   level: 'success' | 'redirect' | 'client_error' | 'server_error'
   status_code: number
@@ -224,8 +223,8 @@ export default function SystemPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto bg-slate-950 p-3 font-mono text-xs leading-6 text-slate-100">
-                {!logsData ? <p className="text-slate-400">กำลังโหลด API logs...</p> : logsData.logs.length ? logsData.logs.map((log) => (
-                  <p key={log.id} className={logColor(log.level)}><span className="text-slate-500">[{new Date(log.timestamp).toLocaleTimeString('th-TH')}]</span> {log.message}</p>
+                {!logsData ? <p className="text-slate-400">กำลังโหลด API logs...</p> : logsData.logs.length ? logsData.logs.map((log, index) => (
+                  <p key={`${log.timestamp}-${index}`} className={logColor(log.level)}><span className="text-slate-500">[{new Date(log.timestamp).toLocaleTimeString('th-TH')}]</span> {log.message}</p>
                 )) : <p className="text-slate-400">ไม่พบ API logs ตามเงื่อนไขที่เลือก</p>}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
