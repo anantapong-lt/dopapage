@@ -18,7 +18,13 @@ type SystemMetrics = {
   memory: Metric
   storage: Metric
 }
-type SystemLog = { id: number; timestamp: string; level: 'info' | 'error'; message: string }
+type SystemLog = {
+  id: number
+  timestamp: string
+  level: 'success' | 'redirect' | 'client_error' | 'server_error'
+  status_code: number
+  message: string
+}
 
 function formatBytes(value: number) {
   if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(0)} MB`
@@ -180,7 +186,12 @@ export default function SystemPage() {
             <CardContent>
               <div className="max-h-96 overflow-auto rounded-md bg-slate-950 p-3 font-mono text-xs leading-6 text-slate-100">
                 {logs.length ? logs.map((log) => (
-                  <p key={log.id} className={log.level === 'error' ? 'text-red-400' : 'text-emerald-300'}>
+                  <p key={log.id} className={
+                    log.level === 'server_error' ? 'text-red-400'
+                      : log.level === 'client_error' ? 'text-amber-300'
+                        : log.level === 'redirect' ? 'text-sky-300'
+                          : 'text-emerald-300'
+                  }>
                     <span className="text-slate-500">[{new Date(log.timestamp).toLocaleTimeString('th-TH')}]</span> {log.message}
                   </p>
                 )) : <p className="text-slate-400">ยังไม่มี API logs ในรอบการทำงานนี้</p>}

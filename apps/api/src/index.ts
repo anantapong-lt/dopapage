@@ -57,7 +57,7 @@ const app = new Elysia()
     const duration = Date.now() - (requestStartedAt.get(request) ?? Date.now())
     const status = typeof set.status === 'number' ? set.status : 200
     const message = `[request] ${request.method} ${url.pathname} ${status} ${duration}ms`
-    writeSystemLog(status >= 400 ? 'error' : 'info', message)
+    writeSystemLog(status, message)
     console.log(formatRequestLog(status, message))
   })
   .use(
