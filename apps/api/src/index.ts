@@ -33,6 +33,11 @@ import { localAssetRoutes } from './modules/assets/local-asset.routes'
 const CHAPTER_PUBLISH_INTERVAL_MS = 60_000
 const requestStartedAt = new WeakMap<Request, number>()
 
+function formatRequestLog(statusCode: number, message: string) {
+  const color = statusCode >= 400 ? '\x1b[31m' : '\x1b[32m'
+  return `${color}${message}\x1b[0m`
+}
+
 async function runChapterPublisher() {
   try {
     const publishedCount = await publishScheduledChapters()
@@ -49,8 +54,8 @@ const app = new Elysia()
   .onAfterResponse(({ request, set }) => {
     const url = new URL(request.url)
     const duration = Date.now() - (requestStartedAt.get(request) ?? Date.now())
-    const status = set.status ?? 200
-    console.log(`[request] ${request.method} ${url.pathname} ${status} ${duration}ms`)
+    const status = typeof set.status === 'number' ? set.status : 200
+    console.log(formatRequestLog(status, `[request] ${request.method} ${url.pathname} ${status} ${duration}ms`))
   })
   .use(
     cors({

@@ -1,15 +1,19 @@
 import { statfs } from 'node:fs/promises'
-import { availableParallelism } from 'node:os'
+import { availableParallelism, cpus, freemem, totalmem } from 'node:os'
 
 type CpuSample = { idle: number; total: number }
 
 let previousCpuSample: CpuSample | null = null
 
 async function readCpuUsagePercent(): Promise<number> {
-  const stat = await Bun.file('/proc/stat').text()
-  const fields = stat.split('\n')[0]?.trim().split(/\s+/).slice(1).map(Number) ?? []
-  const idle = (fields[3] ?? 0) + (fields[4] ?? 0)
-  const total = fields.reduce((sum, value) => sum + value, 0)
+  const sample = cpus().reduce(
+    (value, cpu) => ({
+      idle: value.idle + cpu.times.idle,
+      total: value.total + Object.values(cpu.times).reduce((sum, time) => sum + time, 0),
+    }),
+    { idle: 0, total: 0 },
+  )
+  const { idle, total } = sample
   const previous = previousCpuSample
   previousCpuSample = { idle, total }
 
@@ -18,18 +22,13 @@ async function readCpuUsagePercent(): Promise<number> {
 }
 
 export async function getSystemMetrics() {
-  const [cpuUsagePercent, memory, filesystem] = await Promise.all([
+  const filesystemPath = process.platform === 'win32' ? process.cwd().slice(0, 3) : '/'
+  const [cpuUsagePercent, filesystem] = await Promise.all([
     readCpuUsagePercent(),
-    Bun.file('/proc/meminfo').text(),
-    statfs('/'),
+    statfs(filesystemPath),
   ])
-  const memoryValues = Object.fromEntries(memory.split('\n')
-    .map((line) => line.match(/^(\w+):\s+(\d+)/))
-    .filter((entry): entry is RegExpMatchArray => entry !== null)
-    .map((entry) => [entry[1], Number(entry[2]) * 1024]),
-  ) as Record<string, number>
-  const memoryTotalBytes = memoryValues.MemTotal ?? 0
-  const memoryAvailableBytes = memoryValues.MemAvailable ?? 0
+  const memoryTotalBytes = totalmem()
+  const memoryAvailableBytes = freemem()
   const memoryUsedBytes = Math.max(0, memoryTotalBytes - memoryAvailableBytes)
   const blockSize = Number(filesystem.bsize)
   const storageTotalBytes = Number(filesystem.blocks) * blockSize
