@@ -10,6 +10,7 @@ import { adminTopupsRoutes } from './modules/admin-topups/admin-topups.routes'
 import { adminContentsRoutes } from './modules/admin-contents/admin-contents.routes'
 import { adminDashboardRoutes } from './modules/admin-dashboard/admin-dashboard.routes'
 import { adminSiteRoutes } from './modules/admin-site/admin-site.routes'
+import { adminSystemRoutes } from './modules/admin-system/admin-system.routes'
 import { adminWithdrawalRoutes } from './modules/admin-withdrawals/admin-withdrawals.routes'
 import { agreementsRoutes } from './modules/agreements/agreements.routes'
 import { authRoutes } from './modules/auth/auth.routes'
@@ -66,6 +67,7 @@ const app = new Elysia()
   .use(adminContentsRoutes)
   .use(adminDashboardRoutes)
   .use(adminSiteRoutes)
+  .use(adminSystemRoutes)
   .use(adminWithdrawalRoutes)
   .use(agreementsRoutes)
   .use(authRoutes)

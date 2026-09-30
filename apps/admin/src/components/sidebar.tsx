@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   ClipboardCheck,
+  Cpu,
   FileText,
   LayoutTemplate,
   LogOut,
@@ -64,6 +65,7 @@ const navigation = [
       { href: '/agreements', label: 'จัดการข้อตกลงการใช้งาน', icon: FileText },
     ],
   },
+  { label: 'ระบบ', items: [{ href: '/system', label: 'สถานะระบบ', icon: Cpu }] },
 ] as const
 
 export function Sidebar() {
