@@ -1,12 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Activity, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, RefreshCw, ScrollText, Search } from 'lucide-react'
+import { Activity, CalendarIcon, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, RefreshCw, ScrollText, Search } from 'lucide-react'
+import { th } from 'react-day-picker/locale'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Calendar } from '@/components/ui/calendar'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -84,6 +87,32 @@ function logColor(level: SystemLog['level']) {
   if (level === 'client_error') return 'text-amber-300'
   if (level === 'redirect') return 'text-sky-300'
   return 'text-emerald-300'
+}
+
+function LogDatePicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const selected = new Date(`${value}T12:00:00`)
+  return (
+    <Popover>
+      <PopoverTrigger render={
+        <Button type="button" variant="outline" className="justify-start font-normal">
+          <CalendarIcon />{new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(selected)}
+        </Button>
+      } />
+      <PopoverContent align="start" className="w-auto p-0">
+        <Calendar
+          locale={th}
+          mode="single"
+          selected={selected}
+          defaultMonth={selected}
+          disabled={{ after: new Date() }}
+          onSelect={(date) => {
+            if (!date) return
+            onChange(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 export default function SystemPage() {
@@ -189,7 +218,7 @@ export default function SystemPage() {
                     <SelectItem value="5xx">5xx ข้อผิดพลาดเซิร์ฟเวอร์</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input type="date" value={logDate} max={today} onChange={(event) => { setLogDate(event.target.value || today); setLogPage(1) }} aria-label="วันที่ของ Log" />
+                <LogDatePicker value={logDate} onChange={(value) => { setLogDate(value); setLogPage(1) }} />
                 <Button type="submit" variant="outline" aria-label="ค้นหา Log"><Search />ค้นหา</Button>
               </form>
             </CardHeader>
