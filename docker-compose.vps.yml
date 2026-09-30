@@ -84,7 +84,17 @@ services:
     depends_on:
       - api
 
+  tts-runtime:
+    container_name: tts-runtime
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - tts_runtime:/usr/share/nginx/html:ro
+
 volumes:
   api_assets:
   postgres_data:
   redis_data:
+  tts_runtime:
