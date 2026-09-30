@@ -44,6 +44,17 @@ function trustedR2S3Origin(value: string | undefined): string | null {
 const isProduction = process.env.NODE_ENV === 'production'
 const apiOrigin = trustedHttpOrigin(process.env.NEXT_PUBLIC_API_URL)
   ?? (isProduction ? null : 'http://localhost:4000')
+const apiImageRemotePattern = apiOrigin
+  ? (() => {
+      const url = new URL(apiOrigin)
+      return {
+        protocol: url.protocol.slice(0, -1) as 'http' | 'https',
+        hostname: url.hostname,
+        port: url.port,
+        pathname: '/**',
+      }
+    })()
+  : null
 const isSecureDeployment = isProduction && process.env.NEXT_PUBLIC_SITE_URL?.startsWith('https://')
 const apiWebSocketOrigin = apiOrigin
   ? apiOrigin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
@@ -127,6 +138,9 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'lh3.googleusercontent.com',
       },
+      // Local assets are served by the API in VPS deployments. Keep this
+      // restricted to the configured API origin rather than allowing all hosts.
+      ...(apiImageRemotePattern ? [apiImageRemotePattern] : []),
       // Public R2/custom-media host from env only. Do not allow every R2
       // bucket: NEXT_PUBLIC_R2_PUBLIC_URL is the exact host returned by API.
       ...(publicMediaRemotePattern ? [publicMediaRemotePattern] : []),
