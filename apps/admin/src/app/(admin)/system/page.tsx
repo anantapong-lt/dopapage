@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Activity, CalendarIcon, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, RefreshCw, ScrollText, Search } from 'lucide-react'
 import { th } from 'react-day-picker/locale'
 import { useAdminAuth } from '@/components/admin-auth-provider'
@@ -24,6 +24,7 @@ type SystemMetrics = {
   cpu: { usage_percent: number; cores: number }
   memory: Metric
   storage: Metric
+  assets: { total_bytes: number; folders: Array<{ name: string; bytes: number }> }
 }
 type LogStatus = 'all' | '2xx' | '3xx' | '4xx' | '5xx'
 type SystemLog = {
@@ -53,12 +54,14 @@ function MetricCard({
   value,
   detail,
   percent,
+  children,
 }: {
   icon: typeof Cpu
   label: string
   value: string
   detail: string
   percent: number
+  children?: ReactNode
 }) {
   const color = percent >= 90 ? 'bg-destructive' : percent >= 75 ? 'bg-amber-500' : 'bg-emerald-500'
   return (
@@ -76,6 +79,7 @@ function MetricCard({
           <div className={`h-full rounded-full transition-[width] duration-500 ${color}`} style={{ width: `${percent}%` }} />
         </div>
         <p className="text-xs text-muted-foreground">{detail}</p>
+        {children}
       </CardContent>
     </Card>
   )
@@ -194,7 +198,18 @@ export default function SystemPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <MetricCard icon={Cpu} label="CPU" value={`${metrics.cpu.usage_percent.toFixed(1)}%`} detail={`${metrics.cpu.cores} vCPU`} percent={Math.round(metrics.cpu.usage_percent)} />
             <MetricCard icon={MemoryStick} label="RAM" value={formatBytes(metrics.memory.used_bytes)} detail={`จาก ${formatBytes(metrics.memory.total_bytes)} · ว่าง ${formatBytes(metrics.memory.available_bytes)}`} percent={memoryPercent} />
-            <MetricCard icon={HardDrive} label="Storage" value={formatBytes(metrics.storage.used_bytes)} detail={`จาก ${formatBytes(metrics.storage.total_bytes)} · ว่าง ${formatBytes(metrics.storage.available_bytes)}`} percent={storagePercent} />
+            <MetricCard icon={HardDrive} label="Storage" value={formatBytes(metrics.storage.used_bytes)} detail={`จาก ${formatBytes(metrics.storage.total_bytes)} · ว่าง ${formatBytes(metrics.storage.available_bytes)}`} percent={storagePercent}>
+              <div className="space-y-2 border-t pt-3">
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>Assets</span><span className="tabular-nums">{formatBytes(metrics.assets.total_bytes)}</span></div>
+                {metrics.assets.folders.length ? metrics.assets.folders.map((folder) => {
+                  const folderPercent = percentage(folder.bytes, metrics.assets.total_bytes)
+                  return <div key={folder.name} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{folder.name}</span><span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(folder.bytes)} · {folderPercent}%</span></div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${folderPercent}%` }} /></div>
+                  </div>
+                }) : <p className="text-xs text-muted-foreground">ยังไม่มีไฟล์ใน assets</p>}
+              </div>
+            </MetricCard>
           </div>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><Activity className="size-3.5 text-emerald-500" /> อัปเดตล่าสุด {new Date(metrics.updated_at).toLocaleTimeString('th-TH')}</p>
 
