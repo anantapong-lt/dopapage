@@ -140,9 +140,9 @@ def config_path() -> Path:
 
 def load_config() -> dict[str, Any]:
     path = config_path()
+    template = bundled_root() / "bootstrap-config.json"
     if not path.is_file():
         path.parent.mkdir(parents=True, exist_ok=True)
-        template = bundled_root() / "bootstrap-config.json"
         shutil.copyfile(template, path)
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -150,6 +150,13 @@ def load_config() -> dict[str, Any]:
         raise BootstrapError(f"ไม่สามารถอ่านการตั้งค่าอัปเดตได้: {error}") from error
     if not isinstance(value, dict):
         raise BootstrapError("รูปแบบไฟล์ bootstrap-config.json ไม่ถูกต้อง")
+    try:
+        bundled = json.loads(template.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        bundled = {}
+    if "api_url" not in value and isinstance(bundled, dict) and isinstance(bundled.get("api_url"), str):
+        value["api_url"] = bundled["api_url"]
+        path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return value
 
 
@@ -310,6 +317,7 @@ def ensure_runtime() -> Path:
 def main() -> None:
     application = QApplication(sys.argv)
     try:
+        config = load_config()
         executable = ensure_runtime()
     except BootstrapError as error:
         QMessageBox.critical(None, APP_NAME, str(error))
@@ -317,6 +325,9 @@ def main() -> None:
     runtime_version = executable.parent.name
     environment = os.environ.copy()
     environment["READJI_TTS_RUNTIME_VERSION"] = runtime_version
+    api_url = config.get("api_url")
+    if isinstance(api_url, str) and api_url.strip():
+        environment.setdefault("READJI_TTS_API_URL", api_url.strip())
     subprocess.Popen([str(executable)], cwd=executable.parent, env=environment)
 
 

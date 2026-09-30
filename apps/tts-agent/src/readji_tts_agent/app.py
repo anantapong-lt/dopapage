@@ -3,6 +3,7 @@ from __future__ import annotations
 import faulthandler
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import os
+import json
 from pathlib import Path
 import platform
 import sys
@@ -17,18 +18,30 @@ import uuid
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 import httpx
-from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, Qt, QSettings, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QLocale, QModelIndex, Qt, QSettings, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QSpinBox, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
 from qfluentwidgets import BodyLabel, CheckBox, ComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
+from qfluentwidgets.common.router import qrouter
 
 from .api import ApiClient, ApiError
 from .renderer import RenderError, RenderSettings, VoxCpmRenderer, performance_logger
 from .ffmpeg_setup import FFmpegSetupCancelled, ffmpeg_path, install_ffmpeg, verify_ffmpeg
 from .secure_store import clear_login_credentials, clear_refresh_token, load_login_credentials, load_refresh_token, save_login_credentials, save_refresh_token
 
-DEFAULT_API_URL = os.environ.get("READJI_TTS_API_URL", "http://localhost:4000")
+def packaged_api_url() -> str | None:
+    if not getattr(sys, "frozen", False):
+        return None
+    try:
+        config = json.loads((Path(sys._MEIPASS) / "bootstrap-config.json").read_text(encoding="utf-8"))  # type: ignore[attr-defined]
+    except (OSError, json.JSONDecodeError):
+        return None
+    api_url = config.get("api_url") if isinstance(config, dict) else None
+    return api_url.strip() if isinstance(api_url, str) and api_url.strip() else None
+
+
+DEFAULT_API_URL = os.environ.get("READJI_TTS_API_URL") or packaged_api_url() or "http://localhost:4000"
 
 
 def development_version() -> str:
@@ -1395,7 +1408,6 @@ class JobsPage(QWidget):
         self.audio_status_filter.addItem("มีเสียงแล้ว", userData="available")
         self.audio_status_filter.currentIndexChanged.connect(self._audio_status_changed)
         filters.addWidget(self.audio_status_filter)
-        filters.addWidget(BodyLabel("เรียงตาม", self))
         self.sort_filter = ComboBox(self)
         self.sort_filter.setMinimumWidth(190)
         self.sort_filter.addItem("ลำดับตอน: น้อยไปมาก", userData="chapter_asc")
@@ -1435,7 +1447,7 @@ class JobsPage(QWidget):
         self.previous_button = PushButton("ก่อนหน้า", self)
         self.page_picker = QSpinBox(self)
         self.page_picker.setMinimumWidth(88)
-        self.page_picker.setPrefix("หน้า ")
+        self.page_picker.setLocale(QLocale(QLocale.Language.English, QLocale.Country.UnitedStates))
         self.page_picker.setRange(1, 1)
         self.page_picker.setEnabled(False)
         self.page_picker.valueChanged.connect(self._go_to_page)
@@ -1611,21 +1623,41 @@ class JobsPage(QWidget):
         self.page = 1
         self.load_chapters()
 
+    def _sort_changed(self, _index: int) -> None:
+        self.page = 1
+        self.load_chapters()
+
     def _change_page(self, delta: int) -> None:
-        target = self.page + delta
-        if 1 <= target <= self.total_pages:
-            self.page = target
-            self.load_chapters()
+        self._go_to_page(self.page + delta)
+
+    def _go_to_page(self, page: int) -> None:
+        if not self.total_pages:
+            return
+        target = max(1, min(page, self.total_pages))
+        if target == self.page:
+            return
+        self.page = target
+        self.load_chapters()
 
     def _update_pagination(self, total: int) -> None:
-        self.previous_button.setEnabled(self.page > 1 and self.total_pages > 0)
-        self.next_button.setEnabled(self.page < self.total_pages)
+        has_pages = self.total_pages > 0
+        self.first_button.setEnabled(has_pages and self.page > 1)
+        self.previous_button.setEnabled(has_pages and self.page > 1)
+        self.next_button.setEnabled(has_pages and self.page < self.total_pages)
+        self.last_button.setEnabled(has_pages and self.page < self.total_pages)
+        self.page_picker.blockSignals(True)
+        self.page_picker.setRange(1, max(1, self.total_pages))
+        self.page_picker.setValue(max(1, min(self.page, max(1, self.total_pages))))
+        self.page_picker.blockSignals(False)
+        self.page_picker.setEnabled(has_pages)
         if not self.story_filter.currentData():
             self.page_label.setText("กรุณาเลือกเรื่องก่อนแสดงตอน")
         elif not total:
             self.page_label.setText("ไม่มีตอนที่ตรงกับสถานะเสียงที่เลือกในเรื่องนี้")
         else:
-            self.page_label.setText(f"หน้า {self.page}/{self.total_pages} · {total:,} ตอน · หน้าละ {CHAPTER_PAGE_SIZE} ตอน")
+            first_item = (self.page - 1) * CHAPTER_PAGE_SIZE + 1
+            last_item = min(self.page * CHAPTER_PAGE_SIZE, total)
+            self.page_label.setText(f"แสดง {first_item}–{last_item} จาก {total:,} ตอน · หน้า {self.page}/{self.total_pages}")
 
     def load_chapters(self) -> None:
         if not self.client: return
@@ -1637,11 +1669,12 @@ class JobsPage(QWidget):
             return
         try:
             audio_status = self.audio_status_filter.currentData()
-            result = self.client.list_chapters(story_id, audio_status, self.page, CHAPTER_PAGE_SIZE)
+            sort_by = self.sort_filter.currentData()
+            result = self.client.list_chapters(story_id, audio_status, sort_by, self.page, CHAPTER_PAGE_SIZE)
             self.total_pages = result["pagination"]["total_pages"]
             if self.page > max(1, self.total_pages):
                 self.page = max(1, self.total_pages)
-                result = self.client.list_chapters(story_id, audio_status, self.page, CHAPTER_PAGE_SIZE)
+                result = self.client.list_chapters(story_id, audio_status, sort_by, self.page, CHAPTER_PAGE_SIZE)
             self.total_pages = result["pagination"]["total_pages"]
             for item in result["items"]:
                 if (item.get("latest_job_id") == self.rendering_job_id
@@ -2003,8 +2036,9 @@ class MainWindow(FluentWindow):
         if not self.jobs_added: self.addSubInterface(self.jobs_page, FluentIcon.MUSIC, "งานเสียง"); self.jobs_added = True
         if not self.audio_settings_added: self.addSubInterface(self.audio_settings_page, FluentIcon.SETTING, "ตั้งค่าเสียง"); self.audio_settings_added = True
         if self.logout_navigation_item is None: self.logout_navigation_item = self.navigationInterface.addItem("logout", FluentIcon.POWER_BUTTON, "ออกจากระบบ", self.jobs_page.logout, selectable=False, position=NavigationItemPosition.BOTTOM)
-        self.navigationInterface.show(); self.switchTo(self.jobs_page)
         if self.login_added: self.removeInterface(self.login_page); self.login_added = False
+        qrouter.setDefaultRouteKey(self.stackedWidget, self.jobs_page.objectName())
+        self.navigationInterface.show(); self.switchTo(self.jobs_page)
         self.jobs_page.set_client(client, name)
 
     def _logout_started(self) -> None:
@@ -2027,6 +2061,7 @@ class MainWindow(FluentWindow):
         if self.audio_settings_added:
             self.removeInterface(self.audio_settings_page)
             self.audio_settings_added = False
+        qrouter.setDefaultRouteKey(self.stackedWidget, self.login_page.objectName())
         self.navigationInterface.hide()
 
     def closeEvent(self, event) -> None:

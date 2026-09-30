@@ -5,17 +5,17 @@ import { authenticateWithGoogle, createAuthSession } from './auth.service'
 import { createGoogleAuthorizationUrl, getGoogleProfile, GoogleAuthError } from './google-auth.service'
 import { linkGoogleAccount } from './account-security.service'
 
-const STATE_COOKIE = env.NODE_ENV === 'production' ? '__Host-google_oauth_state' : 'google_oauth_state'
+const STATE_COOKIE = env.COOKIE_SECURE ? '__Host-google_oauth_state' : 'google_oauth_state'
 const STATE_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
+  secure: env.COOKIE_SECURE,
   sameSite: 'lax' as const,
   path: '/',
   maxAge: 10 * 60,
 }
 
 const SECURITY_PATH = '/profile?tab=security'
-const REFRESH_COOKIE_NAME = env.NODE_ENV === 'production' ? '__Host-refresh_token' : 'refresh_token'
+const REFRESH_COOKIE_NAME = env.COOKIE_SECURE ? '__Host-refresh_token' : 'refresh_token'
 
 type OAuthMode = 'login' | 'register' | 'link'
 
@@ -140,8 +140,8 @@ export async function finishGoogleAuthentication(
       sub: result.user.id, role: result.user.role, jti: refreshTokenId, sid: sessionId, token_type: 'refresh',
     })
     cookie[REFRESH_COOKIE_NAME].set({
-      value: refreshToken, httpOnly: true, secure: env.NODE_ENV === 'production',
-      sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax', path: '/', maxAge: 7 * 24 * 60 * 60,
+      value: refreshToken, httpOnly: true, secure: env.COOKIE_SECURE,
+      sameSite: env.COOKIE_SECURE ? 'none' : 'lax', path: '/', maxAge: 7 * 24 * 60 * 60,
     })
     return redirectToWeb('/auth/google/callback', { next })
   } catch (error) {

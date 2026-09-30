@@ -45,12 +45,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 const lineHeightOptions = [
   { value: 'normal', label: 'ปกติ' },
@@ -1083,9 +1077,7 @@ export function RichTextEditor({
         </EditorButton>
         <span className="mx-1 h-6 w-px bg-border" />
         {imageLimitReached ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
+          <span className="inline-flex cursor-not-allowed" title={`เพิ่มรูปภาพได้สูงสุด ${MAX_IMAGES} รูปต่อตอน`}>
                 <span className="inline-flex cursor-not-allowed" tabIndex={0}>
                   <EditorButton
                     label="แทรกรูปภาพ"
@@ -1095,12 +1087,10 @@ export function RichTextEditor({
                     <ImagePlusIcon />
                   </EditorButton>
                 </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
+              <span className="sr-only">
                 เพิ่มรูปภาพได้สูงสุด {MAX_IMAGES} รูปต่อตอน
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              </span>
+          </span>
         ) : (
           <EditorButton
             label="แทรกรูปภาพ"
@@ -1178,7 +1168,7 @@ export function RichTextEditor({
           onValueChange={(value) => {
             if (!editor) return
 
-            if (value === 'normal') {
+            if (!value || value === 'normal') {
               editor.chain().focus().unsetLineHeight().run()
               return
             }

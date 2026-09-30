@@ -24,6 +24,7 @@ function toPurchasableChapter(chapter: PublicReaderChapter): PublicChapter {
   return {
     ...chapter,
     is_owner: false,
+    has_audio: false,
   }
 }
 

@@ -58,6 +58,7 @@ try {
         --name "Dopapage" `
         --paths "src" `
         --add-data "$assetsRoot;assets" `
+        --add-data "$bootstrapConfig;." `
         --collect-all qfluentwidgets `
         --collect-all voxcpm `
         --collect-all soundfile `

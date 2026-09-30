@@ -63,12 +63,23 @@ function positiveInteger(name: string, fallback: number): number {
   return value
 }
 
+function booleanEnvironment(name: string, fallback: boolean): boolean {
+  const value = process.env[name]?.trim().toLowerCase()
+
+  if (!value) return fallback
+  if (value === 'true') return true
+  if (value === 'false') return false
+
+  throw new Error(`${name} must be true or false`)
+}
+
 export const env = {
   NODE_ENV: nodeEnv,
   PORT: Number(process.env.PORT ?? 3001),
   API_ORIGIN: process.env.API_ORIGIN?.trim() ?? `http://localhost:${process.env.PORT ?? 3001}`,
   WEB_ORIGIN: process.env.WEB_ORIGIN ?? 'http://localhost:3000',
   ADMIN_ORIGIN: process.env.ADMIN_ORIGIN ?? 'http://localhost:3002',
+  COOKIE_SECURE: booleanEnvironment('COOKIE_SECURE', nodeEnv === 'production'),
   DATABASE_URL: required('DATABASE_URL'),
   REDIS_URL: process.env.REDIS_URL?.trim() ?? 'redis://localhost:6379',
   JWT_ACCESS_SECRET: requiredSecret('JWT_ACCESS_SECRET'),

@@ -3,13 +3,21 @@ FROM oven/bun:1-alpine AS base
 FROM base AS deps
 WORKDIR /app
 COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile --production
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/shared/package.json ./apps/shared/package.json
+RUN bun install --frozen-lockfile
 
 FROM base AS builder
 WORKDIR /app
 COPY package.json bun.lockb* ./
-RUN bun install --frozen-lockfile
-COPY . .
+COPY apps/web/package.json ./apps/web/package.json
+COPY apps/shared/package.json ./apps/shared/package.json
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY apps/web ./apps/web
+COPY apps/shared ./apps/shared
+RUN ln -s ../web/node_modules /app/apps/shared/node_modules
+WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG API_INTERNAL_URL
 ENV API_INTERNAL_URL=${API_INTERNAL_URL}
@@ -23,9 +31,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 
 USER nextjs
 
@@ -34,4 +42,4 @@ EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["bun", "run", "server.js"]
+CMD ["bun", "./apps/web/server.js"]

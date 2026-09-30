@@ -249,7 +249,7 @@ export default function TopupsPage() {
           </div>
           <div className="space-y-2">
             <Label>สถานะ</Label>
-            <Select value={selectedStatus} onValueChange={(value) => {
+            <Select<string> value={selectedStatus} onValueChange={(value) => {
               if (value) setSelectedStatus(value as 'all' | TopupStatus)
             }}>
               <SelectTrigger className="w-full">

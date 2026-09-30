@@ -36,13 +36,13 @@ import { agentLoginBodySchema, agentRefreshBodySchema } from '../tts-agent/tts-a
 
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
-const REFRESH_COOKIE_NAME = env.NODE_ENV === 'production' ? '__Host-refresh_token' : 'refresh_token'
+const REFRESH_COOKIE_NAME = env.COOKIE_SECURE ? '__Host-refresh_token' : 'refresh_token'
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
+  secure: env.COOKIE_SECURE,
   // The Web/Admin deployments live on a different site from the API, so the
   // refresh cookie must be available to credentialed cross-origin requests.
-  sameSite: env.NODE_ENV === 'production' ? 'none' as const : 'lax' as const,
+  sameSite: env.COOKIE_SECURE ? 'none' as const : 'lax' as const,
   path: '/',
 }
 

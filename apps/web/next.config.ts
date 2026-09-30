@@ -44,6 +44,7 @@ function trustedR2S3Origin(value: string | undefined): string | null {
 const isProduction = process.env.NODE_ENV === 'production'
 const apiOrigin = trustedHttpOrigin(process.env.NEXT_PUBLIC_API_URL)
   ?? (isProduction ? null : 'http://localhost:4000')
+const isSecureDeployment = isProduction && process.env.NEXT_PUBLIC_SITE_URL?.startsWith('https://')
 const apiWebSocketOrigin = apiOrigin
   ? apiOrigin.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:')
   : null
@@ -73,7 +74,7 @@ const contentSecurityPolicy = [
   "frame-src 'self' https://challenges.cloudflare.com",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  ...(isProduction ? ['upgrade-insecure-requests'] : []),
+  ...(isSecureDeployment ? ['upgrade-insecure-requests'] : []),
 ].join('; ')
 
 const securityHeaders = [
@@ -83,7 +84,7 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
   { key: 'X-DNS-Prefetch-Control', value: 'off' },
-  ...(isProduction
+  ...(isSecureDeployment
     ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]
     : []),
 ]
