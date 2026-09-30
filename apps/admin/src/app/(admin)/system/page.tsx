@@ -1,13 +1,14 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
-import { Activity, CalendarIcon, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, RefreshCw, ScrollText, Search } from 'lucide-react'
+import { Activity, CalendarIcon, ChevronDown, ChevronLeft, ChevronRight, Cpu, HardDrive, MemoryStick, RefreshCw, ScrollText, Search } from 'lucide-react'
 import { th } from 'react-day-picker/locale'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Calendar } from '@/components/ui/calendar'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -199,16 +200,18 @@ export default function SystemPage() {
             <MetricCard icon={Cpu} label="CPU" value={`${metrics.cpu.usage_percent.toFixed(1)}%`} detail={`${metrics.cpu.cores} vCPU`} percent={Math.round(metrics.cpu.usage_percent)} />
             <MetricCard icon={MemoryStick} label="RAM" value={formatBytes(metrics.memory.used_bytes)} detail={`จาก ${formatBytes(metrics.memory.total_bytes)} · ว่าง ${formatBytes(metrics.memory.available_bytes)}`} percent={memoryPercent} />
             <MetricCard icon={HardDrive} label="Storage" value={formatBytes(metrics.storage.used_bytes)} detail={`จาก ${formatBytes(metrics.storage.total_bytes)} · ว่าง ${formatBytes(metrics.storage.available_bytes)}`} percent={storagePercent}>
-              <div className="space-y-2 border-t pt-3">
-                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>Assets</span><span className="tabular-nums">{formatBytes(metrics.assets.total_bytes)}</span></div>
-                {metrics.assets.folders.length ? metrics.assets.folders.map((folder) => {
-                  const folderPercent = percentage(folder.bytes, metrics.assets.total_bytes)
-                  return <div key={folder.name} className="space-y-1">
-                    <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{folder.name}</span><span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(folder.bytes)} · {folderPercent}%</span></div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${folderPercent}%` }} /></div>
-                  </div>
-                }) : <p className="text-xs text-muted-foreground">ยังไม่มีไฟล์ใน assets</p>}
-              </div>
+              <Collapsible className="border-t pt-3">
+                <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-full justify-between px-0 text-xs font-normal text-muted-foreground"><span>Assets · {formatBytes(metrics.assets.total_bytes)}</span><ChevronDown className="size-4" /></Button>} />
+                <CollapsibleContent className="space-y-2 pt-2">
+                  {metrics.assets.folders.length ? metrics.assets.folders.map((folder) => {
+                    const folderPercent = percentage(folder.bytes, metrics.assets.total_bytes)
+                    return <div key={folder.name} className="space-y-1">
+                      <div className="flex items-center justify-between gap-2 text-xs"><span className="truncate">{folder.name}</span><span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(folder.bytes)} · {folderPercent}%</span></div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${folderPercent}%` }} /></div>
+                    </div>
+                  }) : <p className="text-xs text-muted-foreground">ยังไม่มีไฟล์ใน assets</p>}
+                </CollapsibleContent>
+              </Collapsible>
             </MetricCard>
           </div>
           <p className="flex items-center gap-2 text-xs text-muted-foreground"><Activity className="size-3.5 text-emerald-500" /> อัปเดตล่าสุด {new Date(metrics.updated_at).toLocaleTimeString('th-TH')}</p>
