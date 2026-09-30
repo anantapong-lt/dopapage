@@ -11,6 +11,7 @@ import { adminContentsRoutes } from './modules/admin-contents/admin-contents.rou
 import { adminDashboardRoutes } from './modules/admin-dashboard/admin-dashboard.routes'
 import { adminSiteRoutes } from './modules/admin-site/admin-site.routes'
 import { adminSystemRoutes } from './modules/admin-system/admin-system.routes'
+import { writeSystemLog } from './modules/admin-system/admin-system-log.service'
 import { adminWithdrawalRoutes } from './modules/admin-withdrawals/admin-withdrawals.routes'
 import { agreementsRoutes } from './modules/agreements/agreements.routes'
 import { authRoutes } from './modules/auth/auth.routes'
@@ -55,7 +56,9 @@ const app = new Elysia()
     const url = new URL(request.url)
     const duration = Date.now() - (requestStartedAt.get(request) ?? Date.now())
     const status = typeof set.status === 'number' ? set.status : 200
-    console.log(formatRequestLog(status, `[request] ${request.method} ${url.pathname} ${status} ${duration}ms`))
+    const message = `[request] ${request.method} ${url.pathname} ${status} ${duration}ms`
+    writeSystemLog(status >= 400 ? 'error' : 'info', message)
+    console.log(formatRequestLog(status, message))
   })
   .use(
     cors({
