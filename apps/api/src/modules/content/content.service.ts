@@ -845,6 +845,12 @@ export interface PublicChapter {
   is_purchased: boolean
   is_owner: boolean
   can_read: boolean
+  has_audio: boolean
+}
+
+type PublicChapterQueryRow = Omit<PublicChapter, 'has_audio'> & {
+  content: string
+  audio_source_hash: string | null
 }
 
 export interface PublicChaptersResult {
@@ -890,14 +896,16 @@ export async function findPublicChaptersBySlug(
   if (!story) return undefined
 
   const offset = (page - 1) * limit
-  const [chapters, [count]] = await Promise.all([
-    db<PublicChapter[]>`
+  const [chapterRows, [count]] = await Promise.all([
+    db<PublicChapterQueryRow[]>`
       SELECT
         chapters.id,
         chapters.chapter_number::TEXT,
         chapters.title,
         chapters.is_free,
         chapters.price::TEXT,
+        COALESCE(novel_chapter_contents.content, '') AS content,
+        generated_audio.source_hash AS audio_source_hash,
         COALESCE(chapters.published_at, chapters.created_at) AS published_at,
         EXISTS (
           SELECT 1
@@ -921,6 +929,16 @@ export async function findPublicChaptersBySlug(
         ) AS can_read
       FROM chapters
       INNER JOIN stories ON stories.id = chapters.story_id
+      LEFT JOIN novel_chapter_contents ON novel_chapter_contents.chapter_id = chapters.id
+      LEFT JOIN LATERAL (
+        SELECT source_hash
+        FROM tts_jobs
+        WHERE tts_jobs.chapter_id = chapters.id
+          AND tts_jobs.status = 'done'
+          AND NULLIF(tts_jobs.audio_url, '') IS NOT NULL
+        ORDER BY tts_jobs.created_at DESC, tts_jobs.id DESC
+        LIMIT 1
+      ) AS generated_audio ON TRUE
       WHERE chapters.story_id = ${story.id}
         AND (
           ${hasAdminAccess}
@@ -951,6 +969,10 @@ export async function findPublicChaptersBySlug(
         )
     `,
   ])
+  const chapters = chapterRows.map(({ content, audio_source_hash, ...chapter }) => ({
+    ...chapter,
+    has_audio: audio_source_hash === createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex'),
+  }))
   const total = Number(count.total)
   const totalPages = Math.ceil(total / limit)
 

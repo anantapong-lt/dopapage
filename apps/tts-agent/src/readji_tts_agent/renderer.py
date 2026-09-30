@@ -3,9 +3,11 @@ from __future__ import annotations
 from collections import deque
 from concurrent.futures import Future, ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from contextlib import nullcontext
+from dataclasses import dataclass
 from pathlib import Path
 from enum import Enum
 import faulthandler
+import hashlib
 import json
 import logging
 from logging.handlers import RotatingFileHandler
@@ -33,10 +35,13 @@ VOICE_FILES = {
 }
 
 MAXIMUM_CHUNK_CHARACTERS = 480
-# Fewer denoising steps are faster but create noticeably more hiss and other
-# synthesis artifacts. Keep this at the model's quality-oriented setting.
-INFERENCE_TIMESTEPS = 8
-MP3_BITRATE = "96k"
+MAXIMUM_CHUNK_ATTEMPTS = 3
+DEFAULT_INFERENCE_TIMESTEPS = 8
+DEFAULT_OUTPUT_SAMPLE_RATE = 48_000
+DEFAULT_MP3_BITRATE = "96k"
+ALLOWED_INFERENCE_TIMESTEPS = (4, 6, 8)
+ALLOWED_OUTPUT_SAMPLE_RATES = (24_000, 32_000, 48_000)
+ALLOWED_MP3_BITRATES = ("48k", "64k", "96k")
 VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
 VOXCPM_MODEL_REVISION = "32279effe8c19989596f05d353d1447f51d9e915"
 VOXCPM_REQUIRED_FILES = (
@@ -80,6 +85,34 @@ def performance_logger() -> logging.Logger:
 
 class RenderError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class RenderSettings:
+    inference_timesteps: int = DEFAULT_INFERENCE_TIMESTEPS
+    output_sample_rate: int = DEFAULT_OUTPUT_SAMPLE_RATE
+    mp3_bitrate: str = DEFAULT_MP3_BITRATE
+
+    @classmethod
+    def from_wire(cls, value: dict | None) -> "RenderSettings":
+        value = value or {}
+        timesteps = value.get("inference_timesteps", DEFAULT_INFERENCE_TIMESTEPS)
+        sample_rate = value.get("output_sample_rate", DEFAULT_OUTPUT_SAMPLE_RATE)
+        bitrate = value.get("mp3_bitrate", DEFAULT_MP3_BITRATE)
+        if timesteps not in ALLOWED_INFERENCE_TIMESTEPS:
+            raise RenderError("จำนวนขั้นตอนสร้างเสียงไม่รองรับ")
+        if sample_rate not in ALLOWED_OUTPUT_SAMPLE_RATES:
+            raise RenderError("ความละเอียดเสียงไม่รองรับ")
+        if bitrate not in ALLOWED_MP3_BITRATES:
+            raise RenderError("คุณภาพ MP3 ไม่รองรับ")
+        return cls(timesteps, sample_rate, bitrate)
+
+    def to_wire(self) -> dict[str, int | str]:
+        return {
+            "inference_timesteps": self.inference_timesteps,
+            "output_sample_rate": self.output_sample_rate,
+            "mp3_bitrate": self.mp3_bitrate,
+        }
 
 
 class _IncompleteFastLoad(RuntimeError):
@@ -239,18 +272,15 @@ class _RenderStageProfiler:
 class _Mp3Encoder:
     """Feed CPU audio to one FFmpeg process while the GPU renders ahead."""
 
-    def __init__(self, ffmpeg: Path, output: Path, sample_rate: int) -> None:
+    def __init__(self, ffmpeg: Path, output: Path, input_sample_rate: int, settings: RenderSettings) -> None:
         self.output = output
         self._errors = tempfile.TemporaryFile()
         try:
             self._process = subprocess.Popen(
                 [str(ffmpeg), "-hide_banner", "-loglevel", "error", "-y",
-                 "-f", "f32le", "-ar", str(sample_rate), "-ac", "1", "-i", "pipe:0",
-                 # Preserve VoxCPM2's native sample rate. Downsampling to 32 kHz
-                 # and encoding at 32 kbps made speech artifacts substantially
-                 # more audible, especially in Thai consonants and sibilants.
-                 "-ac", "1", "-ar", str(sample_rate), "-c:a", "libmp3lame",
-                 "-b:a", MP3_BITRATE, str(output)],
+                 "-f", "f32le", "-ar", str(input_sample_rate), "-ac", "1", "-i", "pipe:0",
+                 "-ac", "1", "-ar", str(settings.output_sample_rate), "-c:a", "libmp3lame",
+                 "-b:a", settings.mp3_bitrate, str(output)],
                 stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=self._errors,
                 creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
@@ -461,9 +491,13 @@ class VoxCpmRenderer:
     def preload(self) -> None:
         self._request({"type": WorkerMessage.PRELOAD})
 
-    def render(self, text: str, voice_slot: str, progress: Callable[[int, int], None],
+    def render(self, text: str, voice_slot: str, settings: RenderSettings, progress: Callable[[int, int], None],
                check_cancel: Callable[[], None] | None = None) -> tuple[Path, float]:
-        result = self._request({"type": WorkerMessage.RENDER, "text": text, "voice_slot": voice_slot}, progress, check_cancel)
+        result = self._request(
+            {"type": WorkerMessage.RENDER, "text": text, "voice_slot": voice_slot, "settings": settings.to_wire()},
+            progress,
+            check_cancel,
+        )
         return Path(result["path"]), float(result["duration"])
 
     def request_shutdown(self) -> None:
@@ -556,11 +590,11 @@ class _LocalVoxCpmRenderer:
             model.tts_model.generate(
                 target_text="Hello, this is the first test sentence.",
                 max_len=10,
-                inference_timesteps=INFERENCE_TIMESTEPS,
+                inference_timesteps=DEFAULT_INFERENCE_TIMESTEPS,
                 cfg_value=2.0,
             )
             torch.cuda.synchronize()
-            print(f"[TTS] compile and warmup ({INFERENCE_TIMESTEPS} steps): {time.monotonic() - warmup_started:.2f}s", flush=True)
+            print(f"[TTS] compile and warmup ({DEFAULT_INFERENCE_TIMESTEPS} steps): {time.monotonic() - warmup_started:.2f}s", flush=True)
         # Publish only after preparation succeeds; a failed warmup is not ready.
         self.model = model
         self.sample_rate = int(model.tts_model.sample_rate)
@@ -647,7 +681,55 @@ class _LocalVoxCpmRenderer:
         self._profile_pending = True
         print(f"[TTS] KV cache capacity: {previous} -> {capacity}; generation length limits unchanged; first chunk may compile a new shape", flush=True)
 
-    def render(self, text: str, voice_slot: str, progress: Callable[[int, int], None]) -> tuple[Path, float]:
+    @staticmethod
+    def _generation_seed(text: str, voice_slot: str, settings: RenderSettings, attempt: int) -> int:
+        """Keep identical inputs reproducible while allowing bounded recovery attempts."""
+        value = "\u001f".join((text, voice_slot, str(settings.inference_timesteps), str(attempt)))
+        return int.from_bytes(hashlib.sha256(value.encode("utf-8")).digest()[:8], "big") % (2**63 - 1)
+
+    @staticmethod
+    def _minimum_expected_duration(text: str) -> float:
+        # This intentionally catches only obvious truncation. Thai speech rates
+        # vary, so a strict word-for-word duration check would reject valid audio.
+        spoken_characters = len(re.sub(r"\s+", "", text))
+        return max(0.35, spoken_characters / 45)
+
+    def _generate_chunk(self, text: str, voice_slot: str, prompt_cache: dict, settings: RenderSettings):
+        import torch
+
+        minimum_duration = self._minimum_expected_duration(text)
+        longest_duration = 0.0
+        for attempt in range(MAXIMUM_CHUNK_ATTEMPTS):
+            seed = self._generation_seed(text, voice_slot, settings, attempt)
+            torch.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+            audio, _, _ = self.model.tts_model.generate_with_prompt_cache(
+                target_text=text,
+                prompt_cache=prompt_cache,
+                cfg_value=2.0,
+                inference_timesteps=settings.inference_timesteps,
+                retry_badcase=True,
+                retry_badcase_max_times=2,
+            )
+            audio = audio.squeeze(0).cpu().numpy()
+            if audio.size == 0:
+                continue
+            duration = len(audio) / self.sample_rate
+            if duration > longest_duration:
+                longest_duration = duration
+            if duration >= minimum_duration:
+                return audio
+            print(
+                f"[TTS] short chunk retry {attempt + 1}/{MAXIMUM_CHUNK_ATTEMPTS}: "
+                f"audio={duration:.2f}s expected-at-least={minimum_duration:.2f}s",
+                flush=True,
+            )
+        raise RenderError(
+            "โมเดลสร้างเสียงสั้นผิดปกติและอาจอ่านไม่จบ "
+            f"(ดีที่สุด {longest_duration:.2f}s, ควรอย่างน้อย {minimum_duration:.2f}s)"
+        )
+
+    def render(self, text: str, voice_slot: str, settings: RenderSettings, progress: Callable[[int, int], None]) -> tuple[Path, float]:
         ffmpeg = verify_ffmpeg()
         self._load_model()
         chunks = self._chunks(text)
@@ -660,23 +742,13 @@ class _LocalVoxCpmRenderer:
         self._prepare_kv_capacity(chunks, prompt_cache)
         output = workspace / "full.mp3"
         try:
-            with _Mp3Encoder(ffmpeg, output, self.sample_rate) as encoder:
+            with _Mp3Encoder(ffmpeg, output, self.sample_rate, settings) as encoder:
                 for index, chunk in enumerate(chunks, start=1):
                     chunk_started = time.monotonic()
                     profiling = self._profile_pending
                     with (_RenderStageProfiler(self.model.tts_model) if profiling else nullcontext()):
-                        audio, _, _ = self.model.tts_model.generate_with_prompt_cache(
-                            target_text=chunk,
-                            prompt_cache=prompt_cache,
-                            cfg_value=2.0,
-                            inference_timesteps=INFERENCE_TIMESTEPS,
-                            retry_badcase=True,
-                            retry_badcase_max_times=2,
-                        )
+                        audio = self._generate_chunk(chunk, voice_slot, prompt_cache, settings)
                     self._profile_pending = False
-                    audio = audio.squeeze(0).cpu().numpy()
-                    if audio.size == 0:
-                        raise RenderError("VoxCPM2 ส่งผลลัพธ์เสียงว่างกลับมา")
                     encoder.submit(audio)
                     total_duration += len(audio) / self.sample_rate
                     elapsed = time.monotonic() - chunk_started
@@ -717,8 +789,9 @@ def _worker_main() -> None:
                     renderer.preload()
                     send({"type": WorkerMessage.RESULT})
                 elif kind == WorkerMessage.RENDER:
+                    settings = RenderSettings.from_wire(command.get("settings"))
                     output, duration = renderer.render(
-                        command["text"], command["voice_slot"],
+                        command["text"], command["voice_slot"], settings,
                         lambda done, total: send({"type": WorkerMessage.PROGRESS, "done": done, "total": total}),
                     )
                     send({"type": WorkerMessage.RESULT, "path": str(output), "duration": duration})

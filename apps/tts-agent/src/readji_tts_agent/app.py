@@ -17,17 +17,33 @@ import uuid
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 import httpx
-from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, Qt, QSettings, QThread, QTimer, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QModelIndex, Qt, QSettings, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QPainter
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, Theme, setCustomStyleSheet, setTheme, setThemeColor
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QSpinBox, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
 
 from .api import ApiClient, ApiError
-from .renderer import RenderError, VoxCpmRenderer, performance_logger
+from .renderer import RenderError, RenderSettings, VoxCpmRenderer, performance_logger
 from .ffmpeg_setup import FFmpegSetupCancelled, ffmpeg_path, install_ffmpeg, verify_ffmpeg
 from .secure_store import clear_login_credentials, clear_refresh_token, load_login_credentials, load_refresh_token, save_login_credentials, save_refresh_token
 
 DEFAULT_API_URL = os.environ.get("READJI_TTS_API_URL", "http://localhost:4000")
+
+
+def development_version() -> str:
+    """Read the project version when the app is started without the bootstrap."""
+    try:
+        for line in (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(encoding="utf-8").splitlines():
+            if line.startswith("version = "):
+                return line.removeprefix("version = ").strip().strip('"')
+    except OSError:
+        pass
+    return ""
+
+
+RUNTIME_VERSION = os.environ.get("READJI_TTS_RUNTIME_VERSION") or development_version()
+DEFAULT_PREVIEW_TEXT = "สวัสดีค่ะ นี่คือตัวอย่างเสียงที่สร้างจากการตั้งค่าปัจจุบัน"
 VOXCPM_MODEL_ID = "openbmb/VoxCPM2"
 # Pin the model revision so Hugging Face does not need a separate repo-info
 # lookup. Some networks return an empty response for that lookup even though
@@ -845,12 +861,250 @@ class LoginPage(QWidget):
         self.login_button.setText("เข้าสู่ระบบ")
 
 
+class PreviewRenderThread(QThread):
+    succeeded = Signal(str)
+    failed = Signal(str)
+    progress_updated = Signal(int, int)
+
+    def __init__(self, renderer: VoxCpmRenderer, settings: RenderSettings, voice_slot: str, text: str) -> None:
+        super().__init__()
+        self.renderer = renderer
+        self.settings = settings
+        self.voice_slot = voice_slot
+        self.text = text
+
+    def run(self) -> None:
+        try:
+            output, _duration = self.renderer.render(
+                self.text,
+                self.voice_slot,
+                self.settings,
+                lambda done, total: self.progress_updated.emit(done, total),
+            )
+            self.succeeded.emit(str(output))
+        except Exception as error:
+            self.failed.emit(f"{type(error).__name__}: {error}")
+
+
+class AudioSettingsPage(QWidget):
+    def __init__(self, settings: QSettings) -> None:
+        super().__init__()
+        self.settings = settings
+        self.renderer: VoxCpmRenderer | None = None
+        self.jobs_page: JobsPage | None = None
+        self.preview_thread: PreviewRenderThread | None = None
+        self.audio_output = QAudioOutput(self)
+        self.audio_output.setVolume(0.9)
+        self.player = QMediaPlayer(self)
+        self.player.setAudioOutput(self.audio_output)
+        self.setObjectName("audio-settings-page")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            AudioSettingsPage {{ background: {background}; }}
+            QLabel {{ color: {foreground}; background: transparent; }}
+        """.format_map(WEB_COLORS))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 32, 40, 32)
+        layout.setSpacing(20)
+        layout.addWidget(SubtitleLabel("ตั้งค่าการแปลงเสียง", self))
+        description = BodyLabel("เลือกคุณภาพตามความเร็ว พื้นที่จัดเก็บ และเสียงที่ต้องการฟัง", self)
+        description.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent;")
+        layout.addWidget(description)
+        self.timesteps = ComboBox(self)
+        self.timesteps.addItem("เร็ว — 4 ขั้นตอน", userData=4)
+        self.timesteps.addItem("สมดุล — 6 ขั้นตอน", userData=6)
+        self.timesteps.addItem("คุณภาพสูง — 8 ขั้นตอน", userData=8)
+        self.sample_rate = ComboBox(self)
+        self.sample_rate.addItem("ประหยัดพื้นที่ — 24 kHz", userData=24_000)
+        self.sample_rate.addItem("สมดุล — 32 kHz", userData=32_000)
+        self.sample_rate.addItem("คุณภาพสูง — 48 kHz", userData=48_000)
+        self.bitrate = ComboBox(self)
+        self.bitrate.addItem("ประหยัดพื้นที่ — 48 kbps", userData="48k")
+        self.bitrate.addItem("สมดุล — 64 kbps", userData="64k")
+        self.bitrate.addItem("คุณภาพสูง — 96 kbps", userData="96k")
+
+        def setting_card(title: str, detail: str, control: ComboBox) -> QFrame:
+            card = QFrame(self)
+            card.setObjectName("audioSettingCard")
+            card.setStyleSheet(f"""
+                QFrame#audioSettingCard {{ background: {WEB_COLORS['card']}; border: 1px solid {WEB_COLORS['border']}; border-radius: 14px; }}
+            """)
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(18, 16, 18, 18)
+            card_layout.setSpacing(6)
+            heading = BodyLabel(title, card)
+            heading.setStyleSheet(f"color: {WEB_COLORS['foreground']}; font-weight: 700; background: transparent; border: none;")
+            hint = BodyLabel(detail, card)
+            hint.setWordWrap(True)
+            hint.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent; border: none;")
+            setCustomStyleSheet(control, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+            card_layout.addWidget(heading)
+            card_layout.addWidget(hint)
+            card_layout.addSpacing(8)
+            card_layout.addWidget(control)
+            return card
+
+        setting_grid = QGridLayout()
+        setting_grid.setHorizontalSpacing(14)
+        setting_grid.setVerticalSpacing(14)
+        setting_grid.addWidget(setting_card("ความเร็วในการสร้าง", "ขั้นตอนน้อยสร้างไวขึ้น แต่อาจมีเสียงรบกวนมากขึ้น", self.timesteps), 0, 0)
+        setting_grid.addWidget(setting_card("ความละเอียดเสียง", "ค่าสูงให้รายละเอียดดีขึ้น แต่ใช้พื้นที่ไฟล์มากขึ้น", self.sample_rate), 0, 1)
+        setting_grid.addWidget(setting_card("คุณภาพไฟล์ MP3", "ค่าสูงช่วยเก็บรายละเอียดเสียงหลังบีบอัด", self.bitrate), 0, 2)
+        for column in range(3):
+            setting_grid.setColumnStretch(column, 1)
+        layout.addLayout(setting_grid)
+
+        preview_card = QFrame(self)
+        preview_card.setObjectName("audioPreviewCard")
+        preview_card.setStyleSheet(f"""
+            QFrame#audioPreviewCard {{ background: {WEB_COLORS['card']}; border: 1px solid {WEB_COLORS['border']}; border-radius: 16px; }}
+        """)
+        preview_layout = QVBoxLayout(preview_card)
+        preview_layout.setContentsMargins(22, 20, 22, 20)
+        preview_layout.setSpacing(10)
+        preview_title = BodyLabel("ทดลองฟังเสียง", preview_card)
+        preview_title.setStyleSheet(f"color: {WEB_COLORS['foreground']}; font-size: 16px; font-weight: 700; background: transparent; border: none;")
+        preview_hint = BodyLabel("ระบบจะสร้างตัวอย่างใหม่ด้วยค่าที่เลือกด้านบน โดยไม่กระทบคิวงาน", preview_card)
+        preview_hint.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent; border: none;")
+        preview_layout.addWidget(preview_title)
+        preview_layout.addWidget(preview_hint)
+        preview_text_header = QHBoxLayout()
+        preview_text_label = BodyLabel("ข้อความตัวอย่าง", preview_card)
+        preview_text_label.setStyleSheet(f"color: {WEB_COLORS['foreground']}; font-weight: 700; background: transparent; border: none;")
+        self.reset_preview_text_button = PushButton("คืนค่าเริ่มต้น", preview_card)
+        self.reset_preview_text_button.clicked.connect(lambda: self.preview_text.setPlainText(DEFAULT_PREVIEW_TEXT))
+        setCustomStyleSheet(self.reset_preview_text_button, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        preview_text_header.addWidget(preview_text_label)
+        preview_text_header.addStretch(1)
+        preview_text_header.addWidget(self.reset_preview_text_button)
+        preview_layout.addLayout(preview_text_header)
+        self.preview_text = TextEdit(preview_card)
+        self.preview_text.setPlainText(DEFAULT_PREVIEW_TEXT)
+        self.preview_text.setPlaceholderText("พิมพ์ข้อความที่ต้องการทดลองฟัง")
+        self.preview_text.setFixedHeight(92)
+        setCustomStyleSheet(self.preview_text, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        preview_layout.addWidget(self.preview_text)
+        preview_controls = QHBoxLayout()
+        preview_controls.setSpacing(10)
+        self.voice = ComboBox(preview_card)
+        self.voice.addItem("เสียงผู้หญิง", userData="female")
+        self.voice.addItem("เสียงผู้ชายวัยรุ่น", userData="young_male")
+        self.voice.addItem("เสียงผู้ชายผู้ใหญ่", userData="old_male")
+        self.voice.setMinimumWidth(250)
+        self.preview_button = PrimaryPushButton("ทดสอบ", preview_card)
+        self.stop_preview_button = PushButton("หยุดเสียง", preview_card)
+        self.stop_preview_button.clicked.connect(self.stop_preview)
+        self.stop_preview_button.setVisible(False)
+        for control in (self.voice, self.preview_button, self.stop_preview_button):
+            setCustomStyleSheet(control, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        preview_controls.addWidget(self.voice)
+        preview_controls.addWidget(self.preview_button)
+        preview_controls.addWidget(self.stop_preview_button)
+        preview_controls.addStretch(1)
+        preview_layout.addLayout(preview_controls)
+        self.preview_progress = ProgressBar(preview_card)
+        self.preview_progress.setCustomBarColor(WEB_COLORS["primary"], WEB_COLORS["primary"])
+        self.preview_progress.setVisible(False)
+        preview_layout.addWidget(self.preview_progress)
+        self.status = BodyLabel("ค่าที่เลือกจะถูกบันทึกอัตโนมัติ และใช้กับงานใหม่", preview_card)
+        self.status.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent; border: none;")
+        preview_layout.addWidget(self.status)
+        layout.addWidget(preview_card)
+        layout.addStretch(1)
+        self.preview_button.clicked.connect(self.preview)
+        self._restore()
+        for control in (self.timesteps, self.sample_rate, self.bitrate):
+            control.currentIndexChanged.connect(self._save)
+
+    def set_renderer(self, renderer: VoxCpmRenderer) -> None:
+        self.renderer = renderer
+
+    def set_jobs_page(self, jobs_page: "JobsPage") -> None:
+        self.jobs_page = jobs_page
+
+    def _restore(self) -> None:
+        for control, key, fallback in (
+            (self.timesteps, "audio/inference_timesteps", 8),
+            (self.sample_rate, "audio/output_sample_rate", 48_000),
+            (self.bitrate, "audio/mp3_bitrate", "96k"),
+        ):
+            index = control.findData(self.settings.value(key, fallback))
+            control.setCurrentIndex(index if index >= 0 else control.findData(fallback))
+
+    def _save(self, _index: int) -> None:
+        settings = self.render_settings()
+        self.settings.setValue("audio/inference_timesteps", settings.inference_timesteps)
+        self.settings.setValue("audio/output_sample_rate", settings.output_sample_rate)
+        self.settings.setValue("audio/mp3_bitrate", settings.mp3_bitrate)
+        self.settings.sync()
+        self.status.setText("บันทึกการตั้งค่าแล้ว งานใหม่จะใช้ค่านี้")
+
+    def render_settings(self) -> RenderSettings:
+        return RenderSettings.from_wire({
+            "inference_timesteps": self.timesteps.currentData(),
+            "output_sample_rate": self.sample_rate.currentData(),
+            "mp3_bitrate": self.bitrate.currentData(),
+        })
+
+    def preview(self) -> None:
+        if self.preview_thread is not None or self.renderer is None:
+            return
+        text = self.preview_text.toPlainText().strip()
+        if not text:
+            self.status.setText("กรุณาใส่ข้อความก่อนสร้างเสียงตัวอย่าง")
+            return
+        if self.jobs_page is not None and self.jobs_page.thread is not None and self.jobs_page.thread.isRunning():
+            self.status.setText("รอให้งานที่กำลังประมวลผลเสร็จก่อน จึงจะฟังตัวอย่างได้")
+            return
+        self.preview_button.setEnabled(False)
+        self.preview_button.setText("กำลังสร้างตัวอย่าง...")
+        self.stop_preview_button.setVisible(True)
+        self.preview_progress.setValue(0)
+        self.preview_progress.setVisible(True)
+        self.status.setText("กำลังสร้างตัวอย่างด้วยค่าที่เลือก")
+        self.preview_thread = PreviewRenderThread(self.renderer, self.render_settings(), self.voice.currentData(), text)
+        self.preview_thread.progress_updated.connect(self._set_preview_progress)
+        self.preview_thread.succeeded.connect(self._preview_ready)
+        self.preview_thread.failed.connect(self._preview_failed)
+        self.preview_thread.finished.connect(self._preview_finished)
+        self.preview_thread.start()
+
+    def _set_preview_progress(self, done: int, total: int) -> None:
+        percent = round(done * 100 / total) if total else 0
+        self.preview_progress.setValue(percent)
+        self.status.setText(f"กำลังสร้างเสียงตัวอย่าง {done}/{total} ช่วง ({percent}%)")
+
+    def stop_preview(self) -> None:
+        self.player.stop()
+        self.preview_progress.setVisible(False)
+        self.stop_preview_button.setVisible(False)
+        self.status.setText("หยุดเสียงตัวอย่างแล้ว")
+
+    def _preview_ready(self, output: str) -> None:
+        self.preview_progress.setValue(100)
+        self.player.setSource(QUrl.fromLocalFile(output))
+        self.player.play()
+        self.status.setText("กำลังเล่นเสียงตัวอย่าง")
+
+    def _preview_failed(self, message: str) -> None:
+        self.preview_progress.setVisible(False)
+        self.stop_preview_button.setVisible(False)
+        self.status.setText(f"สร้างเสียงตัวอย่างไม่สำเร็จ: {message}")
+
+    def _preview_finished(self) -> None:
+        if self.preview_thread is not None:
+            self.preview_thread.deleteLater()
+        self.preview_thread = None
+        self.preview_button.setEnabled(True)
+        self.preview_button.setText("ทดสอบ")
+
+
 class RenderThread(QThread):
     started_job = Signal(str, str, str, str); progress = Signal(int, int, float); succeeded = Signal(str); failed = Signal(str); cancelled = Signal(); idle = Signal()
     job_completed = Signal(str)
     pipeline_status = Signal(str)
-    def __init__(self, client: ApiClient, worker_id: str, renderer: VoxCpmRenderer) -> None:
-        super().__init__(); self.client = client; self.worker_id = worker_id; self.renderer = renderer; self.started_at = 0.0; self.cancel_requested = Event()
+    def __init__(self, client: ApiClient, worker_id: str, renderer: VoxCpmRenderer, settings: RenderSettings) -> None:
+        super().__init__(); self.client = client; self.worker_id = worker_id; self.renderer = renderer; self.settings = settings; self.started_at = 0.0; self.cancel_requested = Event()
         self.job_id: str | None = None
         self.last_status_poll = 0.0
 
@@ -993,7 +1247,7 @@ class RenderThread(QThread):
                         self.started_job.emit(job["chapter_id"], f"{job['story_title']} — {job['chapter_title']}", job["id"], job["voice_slot"])
                         logger.info("job=%s render_started", job["id"])
                         output, duration = self.renderer.render(
-                            job["text"], job["voice_slot"],
+                            job["text"], job["voice_slot"], self.settings,
                             lambda done, total: self._progress(job["id"], done, total),
                             check_cancel=self._raise_if_cancelled,
                         )
@@ -1104,7 +1358,7 @@ class JobsPage(QWidget):
     logout_started = Signal()
     shutdown_complete = Signal()
     def __init__(self, settings: QSettings) -> None:
-        super().__init__(); self.client: ApiClient | None = None; self.worker_id = settings.value("worker_id", "") or str(uuid.uuid4()); settings.setValue("worker_id", self.worker_id); self.thread: RenderThread | None = None; self.logout_thread: LogoutThread | None = None; self.model_download_dialog: ModelDownloadDialog | None = None; self.renderer: VoxCpmRenderer | None = None; self.preload_thread: ModelPreloadThread | None = None; self.model_ready = False; self.rendering_chapter_id: str | None = None; self.shutdown_requested = False
+        super().__init__(); self.settings = settings; self.client: ApiClient | None = None; self.worker_id = settings.value("worker_id", "") or str(uuid.uuid4()); settings.setValue("worker_id", self.worker_id); self.thread: RenderThread | None = None; self.logout_thread: LogoutThread | None = None; self.model_download_dialog: ModelDownloadDialog | None = None; self.renderer: VoxCpmRenderer | None = None; self.preload_thread: ModelPreloadThread | None = None; self.model_ready = False; self.rendering_chapter_id: str | None = None; self.shutdown_requested = False
         self.page = 1
         self.total_pages = 0
         self.rendering_job_id: str | None = None
@@ -1141,6 +1395,15 @@ class JobsPage(QWidget):
         self.audio_status_filter.addItem("มีเสียงแล้ว", userData="available")
         self.audio_status_filter.currentIndexChanged.connect(self._audio_status_changed)
         filters.addWidget(self.audio_status_filter)
+        filters.addWidget(BodyLabel("เรียงตาม", self))
+        self.sort_filter = ComboBox(self)
+        self.sort_filter.setMinimumWidth(190)
+        self.sort_filter.addItem("ลำดับตอน: น้อยไปมาก", userData="chapter_asc")
+        self.sort_filter.addItem("ลำดับตอน: มากไปน้อย", userData="chapter_desc")
+        self.sort_filter.addItem("ชื่อตอน: A–Z", userData="title_asc")
+        self.sort_filter.addItem("ชื่อตอน: Z–A", userData="title_desc")
+        self.sort_filter.currentIndexChanged.connect(self._sort_changed)
+        filters.addWidget(self.sort_filter)
         self.cancel_all_button = PushButton("ยกเลิกงานทั้งหมด", self)
         self.cancel_all_button.clicked.connect(self.cancel_all_jobs)
         filters.addWidget(self.cancel_all_button)
@@ -1168,14 +1431,27 @@ class JobsPage(QWidget):
         layout.addWidget(self.table, 1)
         pagination = QHBoxLayout()
         self.page_label = BodyLabel("กรุณาเลือกเรื่อง", self)
+        self.first_button = PushButton("หน้าแรก", self)
         self.previous_button = PushButton("ก่อนหน้า", self)
+        self.page_picker = QSpinBox(self)
+        self.page_picker.setMinimumWidth(88)
+        self.page_picker.setPrefix("หน้า ")
+        self.page_picker.setRange(1, 1)
+        self.page_picker.setEnabled(False)
+        self.page_picker.valueChanged.connect(self._go_to_page)
         self.next_button = PushButton("ถัดไป", self)
+        self.last_button = PushButton("หน้าสุดท้าย", self)
+        self.first_button.clicked.connect(lambda: self._go_to_page(1))
         self.previous_button.clicked.connect(lambda: self._change_page(-1))
         self.next_button.clicked.connect(lambda: self._change_page(1))
+        self.last_button.clicked.connect(lambda: self._go_to_page(self.total_pages))
         pagination.addWidget(self.page_label)
         pagination.addStretch(1)
+        pagination.addWidget(self.first_button)
         pagination.addWidget(self.previous_button)
+        pagination.addWidget(self.page_picker)
         pagination.addWidget(self.next_button)
+        pagination.addWidget(self.last_button)
         layout.addLayout(pagination)
         self._update_pagination(0)
         self.progress = ProgressBar(self)
@@ -1193,9 +1469,10 @@ class JobsPage(QWidget):
         layout.addLayout(status_row)
         self.progress.setCustomBarColor(WEB_COLORS["primary"], WEB_COLORS["primary"])
         for control in (self.refresh_button, self.render_button, self.story_filter,
-                        self.cancel_all_button, self.previous_button, self.next_button):
+                        self.cancel_all_button, self.first_button, self.previous_button, self.next_button, self.last_button):
             setCustomStyleSheet(control, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
-        setCustomStyleSheet(self.audio_status_filter, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        for control in (self.audio_status_filter, self.sort_filter):
+            setCustomStyleSheet(control, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
         for label in (self.page_label, self.status):
             label.setStyleSheet(f"color: {WEB_COLORS['muted_foreground']}; background: transparent;")
 
@@ -1222,6 +1499,16 @@ class JobsPage(QWidget):
 
     def set_renderer(self, renderer: VoxCpmRenderer) -> None:
         self.renderer = renderer
+
+    def render_settings(self) -> RenderSettings:
+        try:
+            return RenderSettings.from_wire({
+                "inference_timesteps": int(self.settings.value("audio/inference_timesteps", 8)),
+                "output_sample_rate": int(self.settings.value("audio/output_sample_rate", 48_000)),
+                "mp3_bitrate": str(self.settings.value("audio/mp3_bitrate", "96k")),
+            })
+        except (TypeError, ValueError, RenderError):
+            return RenderSettings()
 
     def preload_model(self) -> None:
         if self.shutdown_requested or not self.renderer or self.preload_thread is not None:
@@ -1490,7 +1777,7 @@ class JobsPage(QWidget):
         self.rendering_chapter_id = None
         self.rendering_job_id = None
         self.rendering_progress = 0
-        self.thread = RenderThread(self.client, self.worker_id, self.renderer)
+        self.thread = RenderThread(self.client, self.worker_id, self.renderer, self.render_settings())
         self.thread.job_completed.connect(self._job_uploaded)
         self.thread.pipeline_status.connect(self.status.setText)
         self.thread.started_job.connect(self._started_job); self.thread.progress.connect(self._set_progress)
@@ -1689,8 +1976,8 @@ class JobsPage(QWidget):
 
 class MainWindow(FluentWindow):
     def __init__(self) -> None:
-        super().__init__(); self.settings = QSettings("Dopapage", "TTS Agent"); self.login_page = LoginPage(); self.jobs_page = JobsPage(self.settings)
-        self.setWindowTitle("Dopapage")
+        super().__init__(); self.settings = QSettings("Dopapage", "TTS Agent"); self.login_page = LoginPage(); self.jobs_page = JobsPage(self.settings); self.audio_settings_page = AudioSettingsPage(self.settings)
+        self.setWindowTitle(f"Dopapage v{RUNTIME_VERSION}" if RUNTIME_VERSION else "Dopapage")
         self.setMicaEffectEnabled(False)
         self.setCustomBackgroundColor(WEB_COLORS["background"], WEB_COLORS["background"])
         navigation_style = """
@@ -1700,9 +1987,12 @@ class MainWindow(FluentWindow):
         setCustomStyleSheet(self.navigationInterface, navigation_style, navigation_style)
         setCustomStyleSheet(self.navigationInterface.panel, navigation_style, navigation_style)
         voices_root = application_root() / "assets" / "voices"
-        self.jobs_page.set_renderer(VoxCpmRenderer(voices_root))
+        renderer = VoxCpmRenderer(voices_root)
+        self.jobs_page.set_renderer(renderer)
+        self.audio_settings_page.set_renderer(renderer)
+        self.audio_settings_page.set_jobs_page(self.jobs_page)
         self.login_page.setObjectName("login-page"); self.jobs_page.setObjectName("jobs-page"); self.addSubInterface(self.login_page, FluentIcon.PEOPLE, "เข้าสู่ระบบ")
-        self.login_added = True; self.jobs_added = False; self.logout_navigation_item = None; self.closing_after_render = False; self.navigationInterface.hide(); self.login_page.signed_in.connect(self._signed_in); self.jobs_page.logout_started.connect(self._logout_started); self.jobs_page.signed_out.connect(self._signed_out); self.jobs_page.shutdown_complete.connect(self._finish_shutdown); self.resize(1080, 720); self.jobs_page.preload_model(); self._restore_session()
+        self.login_added = True; self.jobs_added = False; self.audio_settings_added = False; self.logout_navigation_item = None; self.closing_after_render = False; self.navigationInterface.hide(); self.login_page.signed_in.connect(self._signed_in); self.jobs_page.logout_started.connect(self._logout_started); self.jobs_page.signed_out.connect(self._signed_out); self.jobs_page.shutdown_complete.connect(self._finish_shutdown); self.resize(1080, 720); self.jobs_page.preload_model(); self._restore_session()
     def _restore_session(self) -> None:
         token = load_refresh_token()
         if not token: return
@@ -1711,9 +2001,11 @@ class MainWindow(FluentWindow):
         except (ApiError, httpx.HTTPError): clear_refresh_token()
     def _signed_in(self, client: ApiClient, name: str) -> None:
         if not self.jobs_added: self.addSubInterface(self.jobs_page, FluentIcon.MUSIC, "งานเสียง"); self.jobs_added = True
+        if not self.audio_settings_added: self.addSubInterface(self.audio_settings_page, FluentIcon.SETTING, "ตั้งค่าเสียง"); self.audio_settings_added = True
         if self.logout_navigation_item is None: self.logout_navigation_item = self.navigationInterface.addItem("logout", FluentIcon.POWER_BUTTON, "ออกจากระบบ", self.jobs_page.logout, selectable=False, position=NavigationItemPosition.BOTTOM)
+        self.navigationInterface.show(); self.switchTo(self.jobs_page)
         if self.login_added: self.removeInterface(self.login_page); self.login_added = False
-        self.navigationInterface.show(); self.switchTo(self.jobs_page); self.jobs_page.set_client(client, name)
+        self.jobs_page.set_client(client, name)
 
     def _logout_started(self) -> None:
         if self.logout_navigation_item is not None:
@@ -1732,6 +2024,9 @@ class MainWindow(FluentWindow):
         if self.jobs_added:
             self.removeInterface(self.jobs_page)
             self.jobs_added = False
+        if self.audio_settings_added:
+            self.removeInterface(self.audio_settings_page)
+            self.audio_settings_added = False
         self.navigationInterface.hide()
 
     def closeEvent(self, event) -> None:
@@ -1766,6 +2061,7 @@ class MainWindow(FluentWindow):
             self.jobs_page.thread,
             self.jobs_page.logout_thread,
             self.jobs_page.cancel_all_thread,
+            self.audio_settings_page.preview_thread,
             self.jobs_page.ffmpeg_setup_dialog.thread if self.jobs_page.ffmpeg_setup_dialog is not None else None,
             download_dialog.thread if download_dialog is not None else None,
         )

@@ -1,6 +1,6 @@
 'use client'
 
-import { Pause, Play, RotateCcw, Volume2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Pause, Play, RotateCcw, Volume1, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { ReadingSettings } from '@/lib/reading-settings'
@@ -210,12 +210,22 @@ function NovelAudioPlayer({
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
+  const [volume, setVolume] = useState(1)
+  const [playbackRate, setPlaybackRate] = useState(1)
+  const [showAudioControls, setShowAudioControls] = useState(false)
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
     audio.play().catch(() => setIsPlaying(false))
   }, [audioUrl])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.volume = volume
+    audio.playbackRate = playbackRate
+  }, [playbackRate, volume])
 
   function togglePlayback() {
     const audio = audioRef.current
@@ -236,18 +246,18 @@ function NovelAudioPlayer({
 
   return (
     <article
-      className="flex min-h-[32rem] items-center justify-center px-4 py-10 sm:px-10 sm:py-14 lg:px-16"
+      className="flex items-center justify-center px-3 py-5 sm:min-h-[32rem] sm:px-10 sm:py-14 lg:px-16"
       style={{ backgroundColor: themeBackground, color: themeText }}
     >
-      <div className="w-full max-w-lg rounded-[2rem] border border-current/10 bg-black/[0.035] p-6 text-center shadow-sm sm:p-10">
+      <div className="w-full max-w-lg rounded-[1.5rem] border border-current/10 bg-black/[0.035] p-5 text-center shadow-sm sm:rounded-[2rem] sm:p-10">
         <div
-          className={`relative mx-auto mt-8 grid size-56 place-items-center rounded-full bg-zinc-950 shadow-[inset_0_0_0_0.5rem_rgba(255,255,255,0.06),0_1.25rem_2.5rem_rgba(0,0,0,0.22)] sm:size-64 ${isPlaying ? 'animate-[spin_5s_linear_infinite] motion-reduce:animate-none' : ''}`}
+          className={`relative mx-auto mt-3 grid size-40 place-items-center rounded-full bg-zinc-950 shadow-[inset_0_0_0_0.5rem_rgba(255,255,255,0.06),0_1.25rem_2.5rem_rgba(0,0,0,0.22)] sm:mt-8 sm:size-64 ${isPlaying ? 'animate-[spin_5s_linear_infinite] motion-reduce:animate-none' : ''}`}
           style={{
             backgroundImage:
               'repeating-radial-gradient(circle at center, #121212 0 7px, #292929 8px 9px, #111111 10px 15px)',
           }}
         >
-          <div className="grid size-20 place-items-center rounded-full border-[0.6rem] border-black/20 bg-primary shadow-[inset_0_0_0_0.35rem_rgba(255,255,255,0.14)]">
+          <div className="grid size-14 place-items-center rounded-full border-[0.45rem] border-black/20 bg-primary shadow-[inset_0_0_0_0.35rem_rgba(255,255,255,0.14)] sm:size-20 sm:border-[0.6rem]">
             <div className="size-3 rounded-full bg-background/90 shadow-inner" />
           </div>
         </div>
@@ -263,7 +273,7 @@ function NovelAudioPlayer({
           onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         />
 
-        <div className="mt-8 flex items-center gap-3 text-xs font-bold tabular-nums opacity-75">
+        <div className="mt-6 flex items-center gap-2 text-xs font-bold tabular-nums opacity-75 sm:mt-8 sm:gap-3">
           <span>{formatAudioTime(currentTime)}</span>
           <input
             aria-label="ตำแหน่งการเล่นเสียง"
@@ -282,7 +292,7 @@ function NovelAudioPlayer({
           <span>{formatAudioTime(duration)}</span>
         </div>
 
-        <div className="mt-7 flex items-center justify-center gap-3">
+        <div className="mt-5 flex items-center justify-center gap-2 sm:mt-7 sm:gap-3">
           <Button type="button" variant="ghost" size="icon-lg" aria-label="เริ่มเสียงใหม่" onClick={restart}>
             <RotateCcw aria-hidden="true" />
           </Button>
@@ -299,11 +309,76 @@ function NovelAudioPlayer({
               <Play className="size-6" aria-hidden="true" />
             )}
           </Button>
-          <span className="flex size-9 items-center justify-center" aria-label="เสียงบรรยาย">
-            <Volume2 className="size-4" aria-hidden="true" />
+          <span className="flex size-9 items-center justify-center" aria-hidden="true">
+            {volume === 0 ? <VolumeX className="size-4" /> : volume < 0.5 ? <Volume1 className="size-4" /> : <Volume2 className="size-4" />}
           </span>
         </div>
-        <Button type="button" variant="link" className="mt-5" onClick={onBackToContent}>
+
+        <div className="mt-5 border-t border-current/10 pt-2 text-left sm:mt-7 sm:pt-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-expanded={showAudioControls}
+            aria-controls="reader-audio-controls"
+            onClick={() => setShowAudioControls((show) => !show)}
+          >
+            <span className="flex items-center gap-2">
+              <Volume2 className="size-4" aria-hidden="true" />
+              <span className="tabular-nums">{Math.round(volume * 100)}% · {playbackRate}×</span>
+            </span>
+            {showAudioControls ? <ChevronUp className="size-4" aria-hidden="true" /> : <ChevronDown className="size-4" aria-hidden="true" />}
+          </button>
+
+          <div id="reader-audio-controls" hidden={!showAudioControls} className="grid gap-4 px-2 pb-1 pt-3 sm:gap-5 sm:pt-4">
+            <div>
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <label htmlFor="reader-audio-volume">ระดับเสียง</label>
+                <span className="tabular-nums opacity-70">{Math.round(volume * 100)}%</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  className="grid size-9 shrink-0 place-items-center rounded-full text-current transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  aria-label={volume === 0 ? 'เปิดเสียง' : 'ปิดเสียง'}
+                  onClick={() => setVolume((current) => (current === 0 ? 1 : 0))}
+                >
+                  {volume === 0 ? <VolumeX className="size-4" aria-hidden="true" /> : <Volume2 className="size-4" aria-hidden="true" />}
+                </button>
+                <input
+                  id="reader-audio-volume"
+                  aria-label="ระดับเสียง"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume}
+                  className="h-1 w-full cursor-pointer accent-primary"
+                  onChange={(event) => setVolume(Number(event.target.value))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <span className="mb-2 block text-sm">ความเร็วการอ่าน</span>
+              <div className="grid grid-cols-5 gap-1.5 sm:gap-2" role="group" aria-label="ความเร็วการอ่าน">
+                {[0.75, 1, 1.25, 1.5, 2].map((rate) => (
+                  <Button
+                    key={rate}
+                    type="button"
+                    variant={playbackRate === rate ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-8 px-1 text-xs tabular-nums sm:h-9"
+                    aria-pressed={playbackRate === rate}
+                    onClick={() => setPlaybackRate(rate)}
+                  >
+                    {rate}×
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <Button type="button" variant="link" className="mt-3" onClick={onBackToContent}>
           กลับไปอ่านเนื้อหา
         </Button>
       </div>

@@ -68,6 +68,7 @@ export interface PublicChapter {
   is_purchased: boolean
   is_owner: boolean
   can_read: boolean
+  has_audio: boolean
 }
 
 export interface PublicChaptersResponse {

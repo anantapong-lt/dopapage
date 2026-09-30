@@ -7,7 +7,7 @@
     "api": "bun run --cwd apps/api dev",
     "web": "bun run --cwd apps/web dev",
     "admin": "bun run --cwd apps/admin dev",
-    "tts": "cd apps/tts-agent && ./.venv/Scripts/python.exe -m readji_tts_agent.app"
+    "tts": "cd apps/tts-agent && ./.venv/Scripts/python.exe scripts/watch_tts.py"
   },
   "dependencies": {},
   "devDependencies": {

@@ -11,8 +11,15 @@ function respond(error: unknown) {
   return status(500, { message: 'Unable to process TTS agent request' })
 }
 
-export async function listTtsChaptersResponse(userId: string, query: { story_id: string; audio_status?: 'all' | 'missing' | 'available'; page?: number; limit?: number }) {
-  try { return await listWriterTtsChapters(userId, query.story_id, query.audio_status ?? 'all', query.page ?? 1, query.limit ?? 20) } catch (error) { return respond(error) }
+export async function listTtsChaptersResponse(userId: string, query: {
+  story_id: string; audio_status?: 'all' | 'missing' | 'available'
+  sort_by?: 'chapter_asc' | 'chapter_desc' | 'title_asc' | 'title_desc'; page?: number; limit?: number
+}) {
+  try {
+    return await listWriterTtsChapters(
+      userId, query.story_id, query.audio_status ?? 'all', query.sort_by ?? 'chapter_asc', query.page ?? 1, query.limit ?? 20,
+    )
+  } catch (error) { return respond(error) }
 }
 export async function listTtsStoriesResponse(userId: string) {
   try { return { items: await listWriterTtsStories(userId) } } catch (error) { return respond(error) }

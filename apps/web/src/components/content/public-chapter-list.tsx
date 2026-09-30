@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowUpDown, Columns3, List, LoaderCircle } from 'lucide-react'
+import { ArrowUpDown, Columns3, List, LoaderCircle, Volume2 } from 'lucide-react'
 import { GiTwoCoins } from 'react-icons/gi'
 import { useAuth } from '@/components/auth/auth-provider'
 import { ChapterPurchaseDialog } from '@/components/content/chapter-purchase-dialog'
@@ -413,8 +413,15 @@ export function PublicChapterList({
                   {formatChapterNumber(chapter.chapter_number)}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-foreground transition-colors group-hover:text-primary group-data-[selected=true]:text-primary-foreground sm:group-data-[selected=true]:text-foreground">
-                    {chapter.title.trim() || `ตอนที่: ${formatChapterNumber(chapter.chapter_number)}`}
+                  <span className="flex items-center gap-1.5">
+                    <span className="min-w-0 truncate text-sm font-bold text-foreground transition-colors group-hover:text-primary group-data-[selected=true]:text-primary-foreground sm:group-data-[selected=true]:text-foreground">
+                      {chapter.title.trim() || `ตอนที่: ${formatChapterNumber(chapter.chapter_number)}`}
+                    </span>
+                    {chapter.has_audio ? (
+                      <span className="shrink-0 text-primary group-data-[selected=true]:text-primary-foreground sm:group-data-[selected=true]:text-primary" role="img" aria-label="มีเสียงบรรยาย" title="มีเสียงบรรยาย">
+                        <Volume2 className="size-3.5" aria-hidden="true" />
+                      </span>
+                    ) : null}
                   </span>
                   <span className="mt-0.5 block text-xs text-muted-foreground group-data-[selected=true]:text-primary-foreground/75 sm:group-data-[selected=true]:text-muted-foreground">
                     {formatRelativeDate(chapter.published_at, renderedAt)}

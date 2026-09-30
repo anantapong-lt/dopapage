@@ -314,7 +314,10 @@ def main() -> None:
     except BootstrapError as error:
         QMessageBox.critical(None, APP_NAME, str(error))
         raise SystemExit(1)
-    subprocess.Popen([str(executable)], cwd=executable.parent)
+    runtime_version = executable.parent.name
+    environment = os.environ.copy()
+    environment["READJI_TTS_RUNTIME_VERSION"] = runtime_version
+    subprocess.Popen([str(executable)], cwd=executable.parent, env=environment)
 
 
 if __name__ == "__main__":

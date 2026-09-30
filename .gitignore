@@ -60,3 +60,4 @@ data_dump.sql
 /apps/api/assets/stories/
 /apps/api/assets/profiles/
 /apps/api/assets/withdrawal-proofs/
+script.lua

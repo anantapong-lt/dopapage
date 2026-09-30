@@ -34,7 +34,8 @@ export async function listWriterTtsStories(userId: string) {
 }
 
 export async function listWriterTtsChapters(
-  userId: string, storyId: string, audioStatus: 'all' | 'missing' | 'available', page: number, limit: number,
+  userId: string, storyId: string, audioStatus: 'all' | 'missing' | 'available',
+  sortBy: 'chapter_asc' | 'chapter_desc' | 'title_asc' | 'title_desc', page: number, limit: number,
 ) {
   const offset = (page - 1) * limit
   const audioFilter = audioStatus === 'all' ? db`` : audioStatus === 'available' ? db`
@@ -50,6 +51,10 @@ export async function listWriterTtsChapters(
         AND (NULLIF(audio.audio_key, '') IS NOT NULL OR NULLIF(audio.audio_url, '') IS NOT NULL)
     )
   `
+  const orderBy = sortBy === 'chapter_desc' ? db`c.chapter_number DESC, c.id DESC`
+    : sortBy === 'title_asc' ? db`c.title ASC, c.id ASC`
+      : sortBy === 'title_desc' ? db`c.title DESC, c.id DESC`
+        : db`c.chapter_number ASC, c.id ASC`
   const [items, [count]] = await Promise.all([
     db<{
       chapter_id: string; story_id: string; story_title: string; chapter_number: string; chapter_title: string
@@ -73,7 +78,7 @@ export async function listWriterTtsChapters(
       WHERE s.creator_user_id = ${userId} AND s.deleted_at IS NULL
         AND s.id = ${storyId}::UUID
         ${audioFilter}
-      ORDER BY c.chapter_number ASC, c.id
+      ORDER BY ${orderBy}
       LIMIT ${limit} OFFSET ${offset}
     `,
     db<{ total: string }[]>`
