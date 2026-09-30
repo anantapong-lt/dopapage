@@ -41,7 +41,9 @@ type LogsResponse = {
 }
 
 function formatBytes(value: number) {
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(0)} MB`
+  if (value < 1024) return `${value.toLocaleString('th-TH')} B`
+  if (value < 1024 ** 2) return `${(value / 1024).toFixed(2)} KB`
+  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(2)} MB`
   return `${(value / 1024 ** 3).toFixed(2)} GB`
 }
 
