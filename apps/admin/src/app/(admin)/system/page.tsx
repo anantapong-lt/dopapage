@@ -51,6 +51,11 @@ function percentage(used: number, total: number) {
   return total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0
 }
 
+function precisePercentage(value: number, total: number) {
+  const result = total > 0 ? (value / total) * 100 : 0
+  return result > 0 && result < 0.01 ? '<0.01%' : `${result.toFixed(2)}%`
+}
+
 function MetricCard({
   icon: Icon,
   label,
@@ -181,6 +186,7 @@ export default function SystemPage() {
 
   const memoryPercent = metrics ? percentage(metrics.memory.used_bytes, metrics.memory.total_bytes) : 0
   const storagePercent = metrics ? percentage(metrics.storage.used_bytes, metrics.storage.total_bytes) : 0
+  const storageWithoutAssets = metrics ? Math.max(0, metrics.storage.used_bytes - metrics.assets.total_bytes) : 0
   const pagination = logsData?.pagination
 
   return (
@@ -202,8 +208,12 @@ export default function SystemPage() {
             <MetricCard icon={Cpu} label="CPU" value={`${metrics.cpu.usage_percent.toFixed(1)}%`} detail={`${metrics.cpu.cores} vCPU`} percent={Math.round(metrics.cpu.usage_percent)} />
             <MetricCard icon={MemoryStick} label="RAM" value={formatBytes(metrics.memory.used_bytes)} detail={`จาก ${formatBytes(metrics.memory.total_bytes)} · ว่าง ${formatBytes(metrics.memory.available_bytes)}`} percent={memoryPercent} />
             <MetricCard icon={HardDrive} label="Storage" value={formatBytes(metrics.storage.used_bytes)} detail={`จาก ${formatBytes(metrics.storage.total_bytes)} · ว่าง ${formatBytes(metrics.storage.available_bytes)}`} percent={storagePercent}>
-              <Collapsible className="border-t pt-3">
-                <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-full justify-between px-0 text-xs font-normal text-muted-foreground"><span>Assets · {formatBytes(metrics.assets.total_bytes)}</span><ChevronDown className="size-4" /></Button>} />
+              <div className="space-y-2 border-t pt-3 text-xs">
+                <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">พื้นที่อื่นบนดิสก์ (OS, Docker, DB)</span><span className="shrink-0 tabular-nums">{formatBytes(storageWithoutAssets)}</span></div>
+                <div className="flex items-center justify-between gap-3"><span className="text-muted-foreground">Assets ของแอป</span><span className="shrink-0 tabular-nums">{formatBytes(metrics.assets.total_bytes)} · {precisePercentage(metrics.assets.total_bytes, metrics.storage.total_bytes)}</span></div>
+              </div>
+              <Collapsible className="mt-2">
+                <CollapsibleTrigger render={<Button type="button" variant="ghost" size="sm" className="w-full justify-between px-0 text-xs font-normal text-muted-foreground"><span>ดูสัดส่วนภายใน Assets</span><ChevronDown className="size-4" /></Button>} />
                 <CollapsibleContent className="space-y-2 pt-2">
                   {metrics.assets.folders.length ? metrics.assets.folders.map((folder) => {
                     const folderPercent = percentage(folder.bytes, metrics.assets.total_bytes)
