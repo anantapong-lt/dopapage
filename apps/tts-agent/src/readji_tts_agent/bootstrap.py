@@ -8,13 +8,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Any
+from threading import Event
+from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 import zipfile
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QVBoxLayout
+
+from .ffmpeg_setup import FFmpegSetupCancelled, install_ffmpeg
 
 
 APP_NAME = "Dopapage"
@@ -40,7 +43,7 @@ class RuntimeDownloadDialog(QDialog):
 
     def __init__(self) -> None:
         super().__init__()
-        self.cancelled = False
+        self.thread: RuntimeSetupThread | None = None
         self.setWindowTitle("กำลังเตรียม Dopapage")
         self.setModal(True)
         self.setFixedSize(560, 310)
@@ -69,7 +72,7 @@ class RuntimeDownloadDialog(QDialog):
         title.setStyleSheet("font-size: 22px; font-weight: 700;")
         layout.addWidget(title)
 
-        subtitle = QLabel("กำลังติดตั้งส่วนประกอบสำหรับประมวลผลเสียงครั้งแรก\nคุณสามารถใช้งานได้ทันทีเมื่อขั้นตอนนี้เสร็จสิ้น", self)
+        subtitle = QLabel("กำลังติดตั้ง runtime และ FFmpeg สำหรับประมวลผลเสียงครั้งแรก\nคุณสามารถใช้งานได้ทันทีเมื่อขั้นตอนนี้เสร็จสิ้น", self)
         subtitle.setStyleSheet("font-size: 13px; color: #74676a; line-height: 1.45;")
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
@@ -79,7 +82,7 @@ class RuntimeDownloadDialog(QDialog):
         card_layout = QVBoxLayout(card)
         card_layout.setContentsMargins(16, 13, 16, 13)
         card_layout.setSpacing(7)
-        self.status = QLabel("กำลังเชื่อมต่อเพื่อดาวน์โหลด runtime...", card)
+        self.status = QLabel("กำลังเตรียมส่วนประกอบสำหรับประมวลผลเสียง...", card)
         self.status.setStyleSheet("font-size: 13px; font-weight: 600;")
         card_layout.addWidget(self.status)
         self.transfer = QLabel("กำลังคำนวณขนาดไฟล์", card)
@@ -105,23 +108,56 @@ class RuntimeDownloadDialog(QDialog):
         layout.addLayout(bottom)
 
     def cancel(self) -> None:
-        self.cancelled = True
+        if self.thread is None:
+            return
+        if not self.thread.isRunning():
+            super().reject()
+            return
+        self.thread.cancel_requested.set()
         self.cancel_button.setEnabled(False)
-        self.status.setText("กำลังยกเลิกการดาวน์โหลด...")
+        self.status.setText("กำลังยกเลิกการติดตั้ง...")
 
-    def set_download_progress(self, written: int, total: int) -> None:
+    def set_progress(self, stage: str, written: int, total: int) -> None:
         percent = min(99, int(written * 100 / total)) if total else 0
         self.progress.setValue(percent)
         self.percent.setText(f"{percent}%")
-        self.status.setText("กำลังดาวน์โหลด runtime สำหรับประมวลผลเสียง")
-        self.transfer.setText(f"ดาวน์โหลดแล้ว {format_size(written)} จาก {format_size(total)}")
+        self.status.setText(stage)
+        self.transfer.setText(
+            f"ดำเนินการแล้ว {format_size(written)} จาก {format_size(total)}" if total else "กำลังดำเนินการ กรุณาอย่าปิดโปรแกรม"
+        )
 
-    def set_installing(self) -> None:
-        self.cancel_button.setEnabled(False)
+    def set_installing(self, message: str) -> None:
         self.progress.setValue(99)
         self.percent.setText("99%")
-        self.status.setText("กำลังติดตั้งและตรวจสอบความพร้อมของ runtime")
+        self.status.setText(message)
         self.transfer.setText("ขั้นตอนนี้อาจใช้เวลาสักครู่ กรุณาอย่าปิดโปรแกรม")
+
+    def start(self, config: dict[str, Any]) -> None:
+        self.thread = RuntimeSetupThread(config, self)
+        self.thread.progress.connect(self.set_progress)
+        self.thread.installing.connect(self.set_installing)
+        self.thread.failed.connect(self._failed)
+        self.thread.finished.connect(self._finished)
+        self.thread.start()
+
+    def _failed(self, message: str) -> None:
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setText("ปิด")
+        self.status.setText(message)
+        self.transfer.setText("โปรดลองเปิดโปรแกรมใหม่อีกครั้ง")
+
+    def _finished(self) -> None:
+        if self.thread is not None and self.thread.succeeded:
+            self.progress.setRange(0, 100)
+            self.progress.setValue(100)
+            self.percent.setText("100%")
+            self.accept()
+
+    def reject(self) -> None:
+        if self.thread is not None and self.thread.isRunning():
+            self.cancel()
+            return
+        super().reject()
 
 
 def data_root() -> Path:
@@ -214,7 +250,7 @@ def validate_runtime(manifest: dict[str, Any]) -> tuple[str, str, str]:
     return version, url, digest.lower()
 
 
-def download_runtime(url: str, destination: Path, expected_sha256: str, progress: RuntimeDownloadDialog) -> None:
+def download_runtime(url: str, destination: Path, expected_sha256: str, progress: Callable[[str, int, int], None], cancelled: Event) -> None:
     digest = hashlib.sha256()
     temporary = destination.with_suffix(".part")
     try:
@@ -230,9 +266,8 @@ def download_runtime(url: str, destination: Path, expected_sha256: str, progress
                 digest.update(block)
                 written += len(block)
                 if total:
-                    progress.set_download_progress(written, total)
-                QApplication.processEvents()
-                if progress.cancelled:
+                    progress("กำลังดาวน์โหลด runtime สำหรับประมวลผลเสียง", written, total)
+                if cancelled.is_set():
                     raise BootstrapError("ยกเลิกการดาวน์โหลด runtime แล้ว")
         if digest.hexdigest().lower() != expected_sha256:
             raise BootstrapError("ตรวจสอบ SHA-256 ของ runtime ไม่ผ่าน กรุณาลองใหม่")
@@ -242,17 +277,24 @@ def download_runtime(url: str, destination: Path, expected_sha256: str, progress
         raise
 
 
-def extract_runtime(archive: Path, destination: Path) -> None:
+def extract_runtime(archive: Path, destination: Path, progress: Callable[[str, int, int], None], cancelled: Event) -> None:
     staging = destination.with_name(f"{destination.name}.installing")
     shutil.rmtree(staging, ignore_errors=True)
     staging.mkdir(parents=True, exist_ok=True)
     try:
         with zipfile.ZipFile(archive) as package:
-            for entry in package.infolist():
+            entries = package.infolist()
+            total = sum(entry.file_size for entry in entries)
+            extracted = 0
+            for entry in entries:
+                if cancelled.is_set():
+                    raise BootstrapError("ยกเลิกการติดตั้ง runtime แล้ว")
                 target = (staging / entry.filename).resolve()
                 if not target.is_relative_to(staging.resolve()):
                     raise BootstrapError("runtime archive มีพาธที่ไม่ปลอดภัย")
                 package.extract(entry, staging)
+                extracted += entry.file_size
+                progress("กำลังติดตั้ง runtime สำหรับประมวลผลเสียง", extracted, total)
         if not (staging / "Dopapage.exe").is_file():
             raise BootstrapError("runtime archive ไม่มีไฟล์โปรแกรมหลัก")
         shutil.rmtree(destination, ignore_errors=True)
@@ -273,8 +315,12 @@ def remove_old_runtimes(active_version: str) -> None:
         shutil.rmtree(candidate, ignore_errors=True)
 
 
-def ensure_runtime() -> Path:
-    config = load_config()
+def ensure_runtime(
+    config: dict[str, Any],
+    progress: Callable[[str, int, int], None],
+    installing: Callable[[str], None],
+    cancelled: Event,
+) -> Path:
     manifest_url = os.environ.get("READJI_TTS_RUNTIME_MANIFEST_URL") or config.get("manifest_url")
     current = existing_runtime()
     if not isinstance(manifest_url, str) or not manifest_url.strip():
@@ -294,31 +340,59 @@ def ensure_runtime() -> Path:
 
     target = data_root() / "runtime" / version
     executable = target / "Dopapage.exe"
-    if executable.is_file():
-        return executable
-
-    progress = RuntimeDownloadDialog()
-    progress.setWindowModality(Qt.WindowModality.ApplicationModal)
-    progress.show()
-    with tempfile.TemporaryDirectory(prefix="readji-tts-runtime-") as temporary_directory:
-        archive = Path(temporary_directory) / "runtime.zip"
-        download_runtime(download_url, archive, digest, progress)
-        progress.set_installing()
-        QApplication.processEvents()
-        extract_runtime(archive, target)
-    progress.progress.setValue(100)
-    progress.percent.setText("100%")
-    progress.accept()
-    (data_root() / "runtime-state.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
-    remove_old_runtimes(version)
+    if not executable.is_file():
+        with tempfile.TemporaryDirectory(prefix="readji-tts-runtime-") as temporary_directory:
+            archive = Path(temporary_directory) / "runtime.zip"
+            download_runtime(download_url, archive, digest, progress, cancelled)
+            installing("กำลังติดตั้งและตรวจสอบความพร้อมของ runtime")
+            extract_runtime(archive, target, progress, cancelled)
+        (data_root() / "runtime-state.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
+        remove_old_runtimes(version)
     return executable
+
+
+class RuntimeSetupThread(QThread):
+    progress = Signal(str, int, int)
+    installing = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, config: dict[str, Any], parent: QDialog) -> None:
+        super().__init__(parent)
+        self.config = config
+        self.cancel_requested = Event()
+        self.executable: Path | None = None
+        self.succeeded = False
+
+    def run(self) -> None:
+        try:
+            self.executable = ensure_runtime(self.config, self.progress.emit, self.installing.emit, self.cancel_requested)
+            if self.cancel_requested.is_set():
+                raise BootstrapError("ยกเลิกการติดตั้งแล้ว")
+            self.installing.emit("กำลังเตรียม FFmpeg สำหรับแปลงไฟล์เสียง")
+            install_ffmpeg(
+                lambda done, total, message: self.progress.emit(message, done, total),
+                self.cancel_requested,
+            )
+        except FFmpegSetupCancelled:
+            self.failed.emit("ยกเลิกการติดตั้ง FFmpeg แล้ว")
+        except Exception as error:
+            self.failed.emit(str(error))
+        else:
+            self.succeeded = True
 
 
 def main() -> None:
     application = QApplication(sys.argv)
     try:
         config = load_config()
-        executable = ensure_runtime()
+        progress = RuntimeDownloadDialog()
+        progress.setWindowModality(Qt.WindowModality.ApplicationModal)
+        progress.start(config)
+        if progress.exec() != QDialog.DialogCode.Accepted:
+            raise SystemExit(1)
+        if progress.thread is None or progress.thread.executable is None:
+            raise BootstrapError("ติดตั้ง runtime ไม่สำเร็จ")
+        executable = progress.thread.executable
     except BootstrapError as error:
         QMessageBox.critical(None, APP_NAME, str(error))
         raise SystemExit(1)

@@ -39,7 +39,7 @@ def main() -> None:
         "version": arguments.version,
         "runtime": {
             "version": arguments.version,
-            "url": "https://drive.google.com/file/d/1la2ZrO6sfscxZr0hB-zYKdwUbk0oGNFH/view?usp=sharing",
+            "url": f"http://185.84.161.98:8080/Dopapage-runtime-{arguments.version}.zip",
             "sha256": sha256(archive),
             "size": archive.stat().st_size,
             "archive": archive.name,

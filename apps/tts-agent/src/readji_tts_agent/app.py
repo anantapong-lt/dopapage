@@ -1379,7 +1379,10 @@ class JobsPage(QWidget):
         self.cancel_all_thread: CancelAllJobsThread | None = None
         self.cancelling_all = False
         self.queue_threads: dict[str, QueueJobThread] = {}
-        self.ffmpeg_ready = False
+        # Packaged launches go through the bootstrap, which installs and verifies
+        # FFmpeg before this process starts. Keep the development fallback below
+        # for direct source launches that bypass the bootstrap.
+        self.ffmpeg_ready = bool(os.environ.get("READJI_TTS_RUNTIME_VERSION"))
         self.start_requested = False
         self.model_preparing_dialog: ModelPreparingDialog | None = None
         self.ffmpeg_setup_dialog: FFmpegSetupDialog | None = None
