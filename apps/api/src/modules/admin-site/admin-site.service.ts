@@ -40,6 +40,16 @@ const initialAdminSiteConfig: AdminSiteConfig = {
   },
 }
 
+function parseConfigValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+
+  try {
+    return JSON.parse(value)
+  } catch {
+    return value
+  }
+}
+
 async function initializeAdminSiteConfig(): Promise<void> {
   await db.begin(async (transaction) => {
     for (const [key, value] of Object.entries(initialAdminSiteConfig)) {
@@ -60,7 +70,8 @@ export async function getAdminSiteConfig(): Promise<AdminSiteConfig> {
   `
   const config = {} as AdminSiteConfig
   for (const row of rows) {
-    if (row.value && typeof row.value === 'object') config[row.key] = row.value as never
+    const value = parseConfigValue(row.value)
+    if (value && typeof value === 'object') config[row.key] = value as never
   }
   if (config.site) {
     const { admin_url: _adminUrl, ...site } = config.site as AdminSiteConfig['site'] & { admin_url?: string }
