@@ -18,6 +18,9 @@ import {
   registrationPhoneVerifyBodySchema,
   googleCallbackQuerySchema,
   loginBodySchema,
+  passwordResetConfirmBodySchema,
+  passwordResetRequestBodySchema,
+  passwordResetVerifyBodySchema,
   registerBodySchema,
   verifyEmailBodySchema,
 } from './auth.schema'
@@ -33,6 +36,7 @@ import { requestRegistrationPhoneResponse, startRegistrationPhoneResponse, verif
 import { accountSecurityResponse, accountSecuritySessionResponse, changePasswordResponse, requestPhoneVerificationResponse, setPasswordResponse, unlinkGoogleResponse, verifyPhoneVerificationResponse } from './account-security.controller'
 import { agentLoginResponse, agentRefreshResponse } from './agent-auth.controller'
 import { agentLoginBodySchema, agentRefreshBodySchema } from '../tts-agent/tts-agent.schema'
+import { confirmPasswordResetResponse, requestPasswordResetResponse, verifyPasswordResetResponse } from './password-reset.controller'
 
 const ACCESS_TOKEN_TTL_SECONDS = 15 * 60
 const REFRESH_TOKEN_TTL_SECONDS = 7 * 24 * 60 * 60
@@ -94,6 +98,15 @@ export const authRoutes = new Elysia({ prefix: '/auth' })
   })
   .post('/registration/phone/verify', ({ body }) => verifyRegistrationPhoneResponse(body), {
     body: registrationPhoneVerifyBodySchema,
+  })
+  .post('/password-reset/request', ({ body }) => requestPasswordResetResponse(body), {
+    body: passwordResetRequestBodySchema,
+  })
+  .post('/password-reset/verify', ({ body }) => verifyPasswordResetResponse(body), {
+    body: passwordResetVerifyBodySchema,
+  })
+  .post('/password-reset/confirm', ({ body }) => confirmPasswordResetResponse(body), {
+    body: passwordResetConfirmBodySchema,
   })
   .get('/google/callback', ({ cookie, query, refreshJwt, currentUser }) => finishGoogleAuthentication(
     query,

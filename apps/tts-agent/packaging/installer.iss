@@ -16,7 +16,8 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=..\dist\installer
-OutputBaseFilename=Dopapage-Setup-{#MyAppVersion}
+; Keep the public installer URL stable across application releases.
+OutputBaseFilename=Dopapage-Setup
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -38,3 +39,21 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Registry]
+; QSettings uses the native per-user registry backend on Windows.
+Root: HKCU; Subkey: "Software\Dopapage\TTS Agent"; Flags: uninsdeletekey
+
+[UninstallRun]
+; Remove the credentials written by keyring to Windows Credential Manager.
+; The service target can hold the most recently saved account, while the
+; compound targets hold the refresh token and earlier saved login details.
+Filename: "{cmd}"; Parameters: "/C cmdkey /delete:""Readji TTS Agent"" >nul 2>&1"; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/C cmdkey /delete:""refresh-token@Readji TTS Agent"" >nul 2>&1"; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/C cmdkey /delete:""login:http://185.84.161.98:4000@Readji TTS Agent"" >nul 2>&1"; Flags: runhidden
+Filename: "{cmd}"; Parameters: "/C cmdkey /delete:""login:http://localhost:4000@Readji TTS Agent"" >nul 2>&1"; Flags: runhidden
+
+[UninstallDelete]
+; Delete all per-user data that is downloaded or generated after installation.
+Type: filesandordirs; Name: "{localappdata}\Readji\TTS Agent"
+Type: filesandordirs; Name: "{app}"

@@ -67,7 +67,7 @@ async function boostSmsOtpRequest(path: '/api/v1/otp/send' | '/api/v1/otp/verify
   }
 }
 
-async function requestBoostSmsOtp(phoneNumber: string): Promise<string> {
+export async function requestBoostSmsOtp(phoneNumber: string): Promise<string> {
   const phone = phoneNumber.startsWith('+66') ? `0${phoneNumber.slice(3)}` : phoneNumber
   const { ok, status, payload } = await boostSmsOtpRequest('/api/v1/otp/send', { phone, purpose: 'verify' })
   if (!ok) throw new PhoneOtpProviderError(status >= 500 ? 'unavailable' : 'rejected', status, payload)
@@ -79,7 +79,7 @@ async function requestBoostSmsOtp(phoneNumber: string): Promise<string> {
   return ref
 }
 
-async function verifyBoostSmsOtp(ref: string, otp: string): Promise<boolean> {
+export async function verifyBoostSmsOtp(ref: string, otp: string): Promise<boolean> {
   const { ok, payload } = await boostSmsOtpRequest('/api/v1/otp/verify', { ref: ref.trim(), code: otp })
   return Boolean(ok && payload && typeof payload === 'object' && 'valid' in payload && payload.valid === true && 'verified' in payload && payload.verified === true)
 }

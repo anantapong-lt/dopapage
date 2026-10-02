@@ -84,3 +84,26 @@ export const verifyEmailBodySchema = t.Object(
   },
   { additionalProperties: false },
 )
+
+export const passwordResetRequestBodySchema = t.Object({
+  email: t.String({ format: 'email', maxLength: 320 }),
+  turnstile_token: t.Optional(t.String({ maxLength: 2048 })),
+}, { additionalProperties: false })
+
+export type PasswordResetRequestBody = typeof passwordResetRequestBodySchema.static
+
+export const passwordResetVerifyBodySchema = t.Object({
+  reset_id: t.String({ format: 'uuid' }),
+  otp: t.String({ pattern: '^[0-9]{6}$', maxLength: 6 }),
+}, { additionalProperties: false })
+
+export type PasswordResetVerifyBody = typeof passwordResetVerifyBodySchema.static
+
+export const passwordResetConfirmBodySchema = t.Object({
+  reset_id: t.String({ format: 'uuid' }),
+  reset_token: t.String({ minLength: 64, maxLength: 128 }),
+  new_password: t.String({ minLength: 8, maxLength: 72 }),
+  confirm_password: t.String({ minLength: 8, maxLength: 72 }),
+}, { additionalProperties: false })
+
+export type PasswordResetConfirmBody = typeof passwordResetConfirmBodySchema.static

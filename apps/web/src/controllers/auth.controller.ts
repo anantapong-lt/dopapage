@@ -118,6 +118,30 @@ export function loginWithPassword(
   })
 }
 
+export function requestPasswordReset(email: string, turnstileToken?: string): Promise<{ message: string; reset_id: string; masked_phone_number?: string }> {
+  return apiRequest('/auth/password-reset/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, ...(turnstileToken ? { turnstile_token: turnstileToken } : {}) }),
+  })
+}
+
+export function verifyPasswordReset(resetId: string, otp: string): Promise<{ message: string; reset_token: string }> {
+  return apiRequest('/auth/password-reset/verify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset_id: resetId, otp }),
+  })
+}
+
+export function confirmPasswordReset(resetId: string, resetToken: string, newPassword: string, confirmPassword: string): Promise<{ message: string }> {
+  return apiRequest('/auth/password-reset/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset_id: resetId, reset_token: resetToken, new_password: newPassword, confirm_password: confirmPassword }),
+  })
+}
+
 export function refreshAuthSession(): Promise<AuthSession> {
   return apiRequest<AuthSession>('/auth/refresh', { method: 'POST' })
 }

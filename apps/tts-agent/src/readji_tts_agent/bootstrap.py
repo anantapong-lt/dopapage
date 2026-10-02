@@ -22,6 +22,10 @@ from .ffmpeg_setup import FFmpegSetupCancelled, install_ffmpeg
 
 APP_NAME = "Dopapage"
 CHUNK_SIZE = 1024 * 1024
+RUNTIME_REQUIRED_FILES = (
+    "Dopapage.exe",
+    "_internal/setuptools/_vendor/jaraco/text/Lorem ipsum.txt",
+)
 
 
 class BootstrapError(RuntimeError):
@@ -232,8 +236,14 @@ def existing_runtime() -> Path | None:
         version = json.loads(state.read_text(encoding="utf-8")).get("version")
     except (OSError, ValueError, AttributeError):
         return None
-    executable = data_root() / "runtime" / str(version) / "Dopapage.exe"
-    return executable if executable.is_file() else None
+    runtime = data_root() / "runtime" / str(version)
+    executable = runtime / "Dopapage.exe"
+    return executable if has_complete_runtime(runtime) else None
+
+
+def has_complete_runtime(directory: Path) -> bool:
+    """Reject a partially extracted frozen runtime before launching it."""
+    return all((directory / relative_path).is_file() for relative_path in RUNTIME_REQUIRED_FILES)
 
 
 def validate_runtime(manifest: dict[str, Any]) -> tuple[str, str, str]:
@@ -295,7 +305,7 @@ def extract_runtime(archive: Path, destination: Path, progress: Callable[[str, i
                 package.extract(entry, staging)
                 extracted += entry.file_size
                 progress("กำลังติดตั้ง runtime สำหรับประมวลผลเสียง", extracted, total)
-        if not (staging / "Dopapage.exe").is_file():
+        if not has_complete_runtime(staging):
             raise BootstrapError("runtime archive ไม่มีไฟล์โปรแกรมหลัก")
         shutil.rmtree(destination, ignore_errors=True)
         staging.replace(destination)
@@ -352,7 +362,9 @@ def ensure_runtime(
 
 
 class RuntimeSetupThread(QThread):
-    progress = Signal(str, int, int)
+    # Runtime archives exceed Qt's signed 32-bit ``int`` range. Keep byte
+    # counts as Python objects so the UI receives their full 64-bit values.
+    progress = Signal(str, object, object)
     installing = Signal(str)
     failed = Signal(str)
 

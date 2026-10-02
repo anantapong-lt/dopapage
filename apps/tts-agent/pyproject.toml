@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "readji-tts-agent"
-version = "0.1.7"
+version = "0.1.9"
 description = "Windows TTS renderer for Readji writers"
 requires-python = ">=3.10,<3.13"
 dependencies = [

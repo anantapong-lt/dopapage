@@ -147,9 +147,9 @@ export function LoginForm({ registrationEnabled }: { registrationEnabled: boolea
       )}
 
       <div className="flex items-center justify-between text-sm">
-        <span aria-disabled="true" title="ยังไม่เปิดใช้งาน" className="cursor-not-allowed text-muted-foreground opacity-45">
+        <Link href="/forgot-password" className="text-muted-foreground hover:text-primary hover:underline">
           ลืมรหัสผ่าน
-        </span>
+        </Link>
         {registrationEnabled && <Link href="/register" className="text-primary hover:underline">สมัครสมาชิก</Link>}
       </div>
     </form>

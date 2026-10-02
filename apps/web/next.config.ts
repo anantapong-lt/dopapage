@@ -44,9 +44,21 @@ function trustedR2S3Origin(value: string | undefined): string | null {
 const isProduction = process.env.NODE_ENV === 'production'
 const apiOrigin = trustedHttpOrigin(process.env.NEXT_PUBLIC_API_URL)
   ?? (isProduction ? null : 'http://localhost:4000')
+const assetOrigin = trustedHttpOrigin(process.env.NEXT_PUBLIC_ASSET_ORIGIN)
 const apiImageRemotePattern = apiOrigin
   ? (() => {
       const url = new URL(apiOrigin)
+      return {
+        protocol: url.protocol.slice(0, -1) as 'http' | 'https',
+        hostname: url.hostname,
+        port: url.port,
+        pathname: '/**',
+      }
+    })()
+  : null
+const assetImageRemotePattern = assetOrigin
+  ? (() => {
+      const url = new URL(assetOrigin)
       return {
         protocol: url.protocol.slice(0, -1) as 'http' | 'https',
         hostname: url.hostname,
@@ -76,7 +88,7 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  `img-src 'self' data: blob: https://images.unsplash.com https://lh3.googleusercontent.com${apiOrigin ? ` ${apiOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}${privateMangaR2Origin ? ` ${privateMangaR2Origin}` : ''}`,
+  `img-src 'self' data: blob: https://images.unsplash.com https://lh3.googleusercontent.com${apiOrigin ? ` ${apiOrigin}` : ''}${assetOrigin ? ` ${assetOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}${privateMangaR2Origin ? ` ${privateMangaR2Origin}` : ''}`,
   `media-src 'self' blob:${apiOrigin ? ` ${apiOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}`,
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
@@ -141,6 +153,9 @@ const nextConfig: NextConfig = {
       // Local assets are served by the API in VPS deployments. Keep this
       // restricted to the configured API origin rather than allowing all hosts.
       ...(apiImageRemotePattern ? [apiImageRemotePattern] : []),
+      // API-origin asset URLs may come from a separate VPS while the local API
+      // is used for development. Keep the optional host explicit in the env.
+      ...(assetImageRemotePattern ? [assetImageRemotePattern] : []),
       // Public R2/custom-media host from env only. Do not allow every R2
       // bucket: NEXT_PUBLIC_R2_PUBLIC_URL is the exact host returned by API.
       ...(publicMediaRemotePattern ? [publicMediaRemotePattern] : []),
