@@ -59,9 +59,12 @@ export async function findGenreExistence(
 export async function getWriterContentsByType(
   creatorUserId: string,
   storyType: StoryType,
-  input: Pick<GetMyContentsInput, 'page' | 'limit'>,
+  input: Pick<GetMyContentsInput, 'page' | 'limit' | 'search' | 'genreIds' | 'status'>,
 ): Promise<MyContentsResult> {
   const offset = (input.page - 1) * input.limit
+  const searchPattern = `%${input.search}%`
+  const selectedStatus = input.status ?? ''
+  const genreIds = db.array(input.genreIds, 'UUID')
   const [contents, [count]] = await Promise.all([
     db<WriterContent[]>`
       SELECT
@@ -90,6 +93,13 @@ export async function getWriterContentsByType(
         AND stories.type = ${storyType}
         AND stories.deleted_at IS NULL
         AND stories.moderation_status <> ${MODERATION_STATUS.SUSPENDED}
+        AND stories.title ILIKE ${searchPattern}
+        AND (
+          ${input.genreIds.length} = 0
+          OR stories.primary_genre_id = ANY(${genreIds})
+          OR stories.secondary_genre_id = ANY(${genreIds})
+        )
+        AND (${selectedStatus} = '' OR stories.status::TEXT = ${selectedStatus})
       ORDER BY stories.updated_at DESC, stories.id DESC
       LIMIT ${input.limit}
       OFFSET ${offset}
@@ -101,6 +111,13 @@ export async function getWriterContentsByType(
         AND type = ${storyType}
         AND deleted_at IS NULL
         AND moderation_status <> ${MODERATION_STATUS.SUSPENDED}
+        AND title ILIKE ${searchPattern}
+        AND (
+          ${input.genreIds.length} = 0
+          OR primary_genre_id = ANY(${genreIds})
+          OR secondary_genre_id = ANY(${genreIds})
+        )
+        AND (${selectedStatus} = '' OR status::TEXT = ${selectedStatus})
     `,
   ])
   const total = Number(count.total)

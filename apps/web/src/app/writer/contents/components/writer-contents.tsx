@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useAuth } from '@/components/auth/auth-provider'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -13,9 +13,13 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -32,7 +36,8 @@ import type {
   WriterContentsResponse,
 } from '@/interface/writer-content.interface'
 import { CreateContentDialog } from './create-content-dialog'
-import { BookOpenIcon, LockKeyholeIcon, PencilIcon, Trash2Icon } from 'lucide-react'
+import { useGenreOptionsStore } from '@/store/genre-options.store'
+import { BookOpenIcon, ChevronDownIcon, LockKeyholeIcon, PencilIcon, SearchIcon, SlidersHorizontalIcon, Trash2Icon } from 'lucide-react'
 import { GiTwoCoins } from 'react-icons/gi'
 
 const PAGE_LIMIT = 10
@@ -182,42 +187,229 @@ function LoadingCards({ isVisible }: { isVisible: boolean }) {
 interface WriterContentsProps {
   activeTab: WriterContentTab
   page: number
+  filters: WriterContentsFilters
+  initialResult: WriterContentsResponse | null
 }
 
-export function WriterContents({ activeTab, page }: WriterContentsProps) {
-  const router = useRouter()
+interface WriterContentsFilters {
+  search: string
+  genreIds: string[]
+  status?: StoryStatus
+}
+
+function ContentFilters({
+  filters,
+  onApply,
+}: {
+  filters: WriterContentsFilters
+  onApply: (filters: WriterContentsFilters) => void
+}) {
+  const genreOptions = useGenreOptionsStore((state) => state.options)
+  const genreStatus = useGenreOptionsStore((state) => state.status)
+  const [open, setOpen] = useState(false)
+  const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>(filters.genreIds)
+  const [selectedStatus, setSelectedStatus] = useState<StoryStatus | 'all'>(filters.status ?? 'all')
+  const activeFilterCount = filters.genreIds.length + Number(Boolean(filters.status))
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setSelectedGenreIds(filters.genreIds)
+      setSelectedStatus(filters.status ?? 'all')
+    }
+    setOpen(nextOpen)
+  }
+
+  function toggleGenre(genreId: string) {
+    setSelectedGenreIds((current) => (
+      current.includes(genreId)
+        ? current.filter((id) => id !== genreId)
+        : [...current, genreId]
+    ))
+  }
+
+  function applyFilters() {
+    onApply({
+      ...filters,
+      genreIds: selectedGenreIds,
+      status: selectedStatus === 'all' ? undefined : selectedStatus,
+    })
+    setOpen(false)
+  }
+
+  function clearFilters() {
+    setSelectedGenreIds([])
+    setSelectedStatus('all')
+    onApply({ ...filters, genreIds: [], status: undefined })
+    setOpen(false)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Button asChild type="button" variant="outline" className="relative h-10 gap-2">
+        <DialogTrigger>
+          <SlidersHorizontalIcon className="size-4" />
+          ตัวกรอง
+          {activeFilterCount > 0 && (
+            <Badge className="ml-1 size-5 p-0 text-[11px]">{activeFilterCount}</Badge>
+          )}
+        </DialogTrigger>
+      </Button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>ตัวกรองผลงาน</DialogTitle>
+          <DialogDescription>เลือกหมวดหมู่ได้มากกว่าหนึ่งรายการ</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">หมวดหมู่</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" className="h-11 w-full justify-between font-normal">
+                  <span className="truncate">
+                    {genreStatus === 'idle' || genreStatus === 'loading'
+                      ? 'กำลังโหลดหมวดหมู่...'
+                      : selectedGenreIds.length === 0
+                        ? 'เลือกหมวดหมู่'
+                        : `เลือกแล้ว ${selectedGenreIds.length} หมวดหมู่`}
+                  </span>
+                  <ChevronDownIcon className="size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-1">
+                {genreOptions.length === 0 ? (
+                  <p className="p-2 text-sm text-muted-foreground">ไม่พบหมวดหมู่</p>
+                ) : (
+                  <div className="max-h-56 overflow-y-auto">
+                    {genreOptions.map((genre) => {
+                      const isSelected = selectedGenreIds.includes(genre.value)
+                      return (
+                        <label key={genre.value} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-2 text-sm hover:bg-accent">
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleGenre(genre.value)} />
+                          <span>{genre.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+            {genreStatus === 'error' && <p className="text-xs text-destructive">ไม่สามารถโหลดหมวดหมู่ได้</p>}
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="writer-content-status" className="text-sm font-medium">สถานะการเผยแพร่</label>
+            <Select value={selectedStatus} onValueChange={(value) => setSelectedStatus(value as StoryStatus | 'all')}>
+              <SelectTrigger id="writer-content-status" className="h-11 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">ทั้งหมด</SelectItem>
+                {(Object.entries(statusLabels) as [StoryStatus, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={clearFilters}>ล้างตัวกรอง</Button>
+          <Button type="button" onClick={applyFilters}>ใช้ตัวกรอง</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+interface WriterContentsView {
+  activeTab: WriterContentTab
+  page: number
+  filters: WriterContentsFilters
+}
+
+function viewFromLocation(): WriterContentsView {
+  const params = new URLSearchParams(window.location.search)
+  const activeTab: WriterContentTab = params.get('tab') === 'cartoon' ? 'cartoon' : 'novel'
+  const requestedPage = Number(params.get('page') ?? 1)
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1
+  const status = params.get('status')
+
+  return {
+    activeTab,
+    page,
+    filters: {
+      search: params.get('search') ?? '',
+      genreIds: (params.get('genre_ids') ?? '').split(',').filter(Boolean),
+      status: status && Object.values(StoryStatus).includes(status as StoryStatus) ? status as StoryStatus : undefined,
+    },
+  }
+}
+
+export function WriterContents({
+  activeTab: initialActiveTab,
+  page: initialPage,
+  filters: initialFilters,
+  initialResult,
+}: WriterContentsProps) {
   const { accessToken } = useAuth()
-  const [result, setResult] = useState<WriterContentsResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [showSkeleton, setShowSkeleton] = useState(true)
-  const [showContent, setShowContent] = useState(false)
+  const [view, setView] = useState<WriterContentsView>({
+    activeTab: initialActiveTab,
+    page: initialPage,
+    filters: initialFilters,
+  })
+  const initialRequestKey = JSON.stringify({
+    activeTab: initialActiveTab,
+    page: initialPage,
+    filters: initialFilters,
+  })
+  const initialResultPending = useRef(initialResult !== null)
+  const [result, setResult] = useState<WriterContentsResponse | null>(initialResult)
+  const [isLoading, setIsLoading] = useState(initialResult === null)
+  const [showSkeleton, setShowSkeleton] = useState(initialResult === null)
+  const [showContent, setShowContent] = useState(initialResult !== null)
   const [hasError, setHasError] = useState(false)
   const [contentToDelete, setContentToDelete] = useState<WriterContent | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [search, setSearch] = useState(initialFilters.search)
+  const { activeTab, page, filters } = view
+  const requestKey = JSON.stringify(view)
 
   useEffect(() => {
     if (!accessToken) return
 
-    let cancelled = false
+    if (initialResultPending.current && requestKey === initialRequestKey) {
+      initialResultPending.current = false
+      return
+    }
+
+    const controller = new AbortController()
     setIsLoading(true)
     setHasError(false)
 
-    void getMyContents(activeTab, page, PAGE_LIMIT, accessToken)
+    void getMyContents(activeTab, page, PAGE_LIMIT, accessToken, filters, controller.signal)
       .then((nextResult) => {
-        if (!cancelled) setResult(nextResult)
+        if (!controller.signal.aborted) setResult(nextResult)
       })
       .catch(() => {
-        if (!cancelled) setHasError(true)
+        if (!controller.signal.aborted) setHasError(true)
       })
       .finally(() => {
-        if (!cancelled) setIsLoading(false)
+        if (!controller.signal.aborted) setIsLoading(false)
       })
 
     return () => {
-      cancelled = true
+      controller.abort()
     }
-  }, [accessToken, activeTab, page])
+  }, [accessToken, activeTab, initialRequestKey, page, filters, requestKey])
+
+  useEffect(() => {
+    setSearch(filters.search)
+  }, [filters.search])
+
+  useEffect(() => {
+    const restoreView = () => setView(viewFromLocation())
+    window.addEventListener('popstate', restoreView)
+    return () => window.removeEventListener('popstate', restoreView)
+  }, [])
 
   useEffect(() => {
     if (isLoading) {
@@ -238,12 +430,27 @@ export function WriterContents({ activeTab, page }: WriterContentsProps) {
     }
   }, [isLoading])
 
+  const navigate = (nextTab: WriterContentTab, nextPage: number, nextFilters: WriterContentsFilters) => {
+    const params = new URLSearchParams({ tab: nextTab, page: String(nextPage) })
+    if (nextFilters.search) params.set('search', nextFilters.search)
+    if (nextFilters.genreIds.length > 0) params.set('genre_ids', nextFilters.genreIds.join(','))
+    if (nextFilters.status) params.set('status', nextFilters.status)
+    const href = `/writer/contents?${params.toString()}`
+    window.history.pushState(null, '', href)
+    setView({ activeTab: nextTab, page: nextPage, filters: nextFilters })
+  }
+
   const changeTab = (value: string) => {
-    router.push(`/writer/contents?tab=${value}`)
+    navigate(value as WriterContentTab, 1, filters)
   }
 
   const changePage = (nextPage: number) => {
-    router.push(`/writer/contents?tab=${activeTab}&page=${nextPage}`)
+    navigate(activeTab, nextPage, filters)
+  }
+
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    navigate(activeTab, 1, { ...filters, search: search.trim() })
   }
 
   const confirmDelete = async () => {
@@ -303,6 +510,26 @@ export function WriterContents({ activeTab, page }: WriterContentsProps) {
             </TabsList>
 
             <CreateContentDialog defaultType={activeTab} />
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <form onSubmit={submitSearch} className="flex min-w-0 flex-1 gap-2">
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="ค้นหาชื่อเรื่อง"
+                aria-label="ค้นหาชื่อเรื่อง"
+                className="h-10 min-w-0 bg-white"
+              />
+              <Button type="submit" variant="outline" className="h-10 shrink-0 gap-2">
+                <SearchIcon className="size-4" />
+                ค้นหา
+              </Button>
+            </form>
+            <ContentFilters
+              filters={filters}
+              onApply={(nextFilters) => navigate(activeTab, 1, nextFilters)}
+            />
           </div>
 
           <TabsContent

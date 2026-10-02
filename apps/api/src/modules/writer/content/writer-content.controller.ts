@@ -7,11 +7,7 @@ import type {
   WriterContentDetail,
 } from '../../../models/writer-content.model'
 import { STORY_TYPE } from '../../../models/story.model'
-import {
-  deleteWriterCover,
-  deleteWriterCoverByUrl,
-  uploadWriterCover,
-} from './writer-cover.service'
+import { deleteWriterCover, deleteWriterCoverByUrl, uploadWriterCover } from './writer-cover.service'
 import {
   findGenreExistence,
   findWriterContent,
@@ -58,19 +54,12 @@ const RANDOM_SLUG_LENGTH = 15
 
 function createRandomSlug(): string {
   const randomValues = crypto.getRandomValues(new Uint8Array(RANDOM_SLUG_LENGTH))
-  return Array.from(
-    randomValues,
-    (value) => RANDOM_SLUG_CHARACTERS[value % RANDOM_SLUG_CHARACTERS.length],
-  ).join('')
+  return Array.from(randomValues, (value) => RANDOM_SLUG_CHARACTERS[value % RANDOM_SLUG_CHARACTERS.length]).join('')
 }
 
 async function validateGenres(primaryGenreId: string, secondaryGenreId: string | null) {
   if (secondaryGenreId === primaryGenreId) {
-    throw new CreateWriterContentError(
-      'หมวดหมู่หลักและหมวดหมู่รองต้องไม่ซ้ำกัน',
-      400,
-      'secondary_genre_id',
-    )
+    throw new CreateWriterContentError('หมวดหมู่หลักและหมวดหมู่รองต้องไม่ซ้ำกัน', 400, 'secondary_genre_id')
   }
 
   const genres = await findGenreExistence(primaryGenreId, secondaryGenreId)
@@ -92,18 +81,13 @@ export async function getWriterContent(
   return story
 }
 
-export function getMyContents(
-  creatorUserId: string,
-  input: GetMyContentsInput,
-): Promise<MyContentsResult> {
+export function getMyContents(creatorUserId: string, input: GetMyContentsInput): Promise<MyContentsResult> {
   const storyType = input.tab === 'cartoon' ? STORY_TYPE.MANGA : STORY_TYPE.NOVEL
+  console.log(creatorUserId, input)
   return getWriterContentsByType(creatorUserId, storyType, input)
 }
 
-export async function deleteWriterContent(
-  creatorUserId: string,
-  contentId: string,
-): Promise<void> {
+export async function deleteWriterContent(creatorUserId: string, contentId: string): Promise<void> {
   const deleted = await softDeleteWriterContent(creatorUserId, contentId)
   if (!deleted) throw new CreateWriterContentError('ไม่พบผลงานที่ต้องการลบ หรือผลงานถูกล็อคโดยระบบ', 404)
 }
@@ -127,9 +111,7 @@ export async function createWriterContent(
   }
   await validateGenres(input.primary_genre_id, secondaryGenreId)
 
-  const uploadedCover = input.cover
-    ? await uploadWriterCover(input.cover, WRITER_COVER_OPTIMIZATION)
-    : null
+  const uploadedCover = input.cover ? await uploadWriterCover(input.cover, WRITER_COVER_OPTIMIZATION) : null
   try {
     return await insertWriterContent(creatorUserId, {
       type: input.type,
@@ -176,31 +158,34 @@ export async function updateWriterContent(
   if (!title) throw new CreateWriterContentError('กรุณากรอกชื่อเรื่อง', 400, 'title')
   await validateGenres(input.primary_genre_id, secondaryGenreId)
 
-  const uploadedCover = input.cover
-    ? await uploadWriterCover(input.cover, WRITER_COVER_OPTIMIZATION)
-    : null
+  const uploadedCover = input.cover ? await uploadWriterCover(input.cover, WRITER_COVER_OPTIMIZATION) : null
   const shouldRemoveCover = input.remove_cover === 'true'
   const previousCoverUrl = existingStory.cover_url
   const previousCoverBlurDataUrl = existingStory.cover_blur_data_url
   const hasCoverChanged = Boolean(uploadedCover) || shouldRemoveCover
   const nextCoverUrl = uploadedCover?.cover_url ?? (shouldRemoveCover ? null : previousCoverUrl)
-  const nextCoverBlurDataUrl = uploadedCover?.cover_blur_data_url
-    ?? (shouldRemoveCover ? null : previousCoverBlurDataUrl)
+  const nextCoverBlurDataUrl =
+    uploadedCover?.cover_blur_data_url ?? (shouldRemoveCover ? null : previousCoverBlurDataUrl)
 
   try {
-    const story = await updateWriterContentRecord(creatorUserId, contentId, {
-      type: input.type,
-      title,
-      alternativeTitle,
-      slug,
-      synopsis,
-      coverUrl: nextCoverUrl,
-      coverBlurDataUrl: nextCoverBlurDataUrl,
-      status: input.status,
-      ageRating,
-      primaryGenreId: input.primary_genre_id,
-      secondaryGenreId,
-    }, includeLocked)
+    const story = await updateWriterContentRecord(
+      creatorUserId,
+      contentId,
+      {
+        type: input.type,
+        title,
+        alternativeTitle,
+        slug,
+        synopsis,
+        coverUrl: nextCoverUrl,
+        coverBlurDataUrl: nextCoverBlurDataUrl,
+        status: input.status,
+        ageRating,
+        primaryGenreId: input.primary_genre_id,
+        secondaryGenreId,
+      },
+      includeLocked,
+    )
     if (!story) throw new CreateWriterContentError('ไม่พบเนื้อหาที่ต้องการแก้ไข', 404)
 
     if (previousCoverUrl && hasCoverChanged) {

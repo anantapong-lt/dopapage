@@ -6,6 +6,9 @@ export interface GetMyContentsInput {
   tab: WriterContentTab
   page: number
   limit: number
+  search: string
+  genreIds: string[]
+  status?: StoryStatus
 }
 
 export interface WriterContent {

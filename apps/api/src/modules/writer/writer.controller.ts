@@ -34,9 +34,11 @@ import type {
   bulkUpdateChapterStatusBodySchema,
 } from './chapter/writer-chapter.schema'
 import type { AuthenticatedUser } from '../auth/auth.service'
+import { USER_ROLE } from '../../models/user.model'
 import { resolveWriterContentAccess } from './writer-access.service'
 
 type WriterContentActor = Pick<AuthenticatedUser, 'id' | 'role'>
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
 export async function importWriterChaptersResponse(
   currentUser: WriterContentActor,
@@ -83,13 +85,19 @@ export async function getWriterStatsResponse(
 }
 
 export async function getWriterContentsResponse(
-  userId: string,
+  currentUser: AuthenticatedUser | null,
   query: typeof writerContentsQuerySchema.static,
 ) {
-  return getMyContents(userId, {
+  if (!currentUser) return status(401, { message: 'กรุณาเข้าสู่ระบบ' })
+  if (currentUser.role !== USER_ROLE.WRITER) return status(403, { message: 'บัญชีนี้ไม่มีสิทธิ์เข้าถึงข้อมูลนี้' })
+
+  return getMyContents(currentUser.id, {
     tab: query.tab,
     page: query.page ?? 1,
     limit: query.limit ?? 10,
+    search: query.search?.trim() ?? '',
+    genreIds: query.genre_ids?.split(',').filter((id) => UUID_PATTERN.test(id)) ?? [],
+    status: query.status,
   })
 }
 

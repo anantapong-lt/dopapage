@@ -135,15 +135,21 @@ export function getMyContents(
   page: number,
   limit: number,
   accessToken: string,
+  filters: { search: string; genreIds: string[]; status?: string },
+  signal?: AbortSignal,
 ): Promise<WriterContentsResponse> {
   const searchParams = new URLSearchParams({
     tab,
     page: String(page),
     limit: String(limit),
   })
+  if (filters.search) searchParams.set('search', filters.search)
+  if (filters.genreIds.length > 0) searchParams.set('genre_ids', filters.genreIds.join(','))
+  if (filters.status) searchParams.set('status', filters.status)
 
   return apiRequest(`/writer/contents?${searchParams.toString()}`, {
     accessToken,
+    signal,
   })
 }
 

@@ -5,6 +5,7 @@ import type { AuthUser } from '@/interface/user.interface'
 import type { TopupPageConfig } from '@/interface/topup.interface'
 import type { FavoriteStoriesResponse, UserProfile } from '@/interface/profile.interface'
 import type { AccountSecurity } from '@/interface/account-security.interface'
+import type { WriterContentsResponse, WriterContentTab } from '@/interface/writer-content.interface'
 import { SITE_CONFIG } from '@/site.config'
 
 export interface PublicFeatureConfig {
@@ -138,6 +139,31 @@ export async function getServerFavoriteStories(
     )
     if (!response.ok) return null
     return await response.json() as FavoriteStoriesResponse
+  } catch {
+    return null
+  }
+}
+
+export async function getServerWriterContents(
+  tab: WriterContentTab,
+  page: number,
+  filters: { search: string; genreIds: string[]; status?: string },
+): Promise<WriterContentsResponse | null> {
+  const cookieHeader = (await cookies()).toString()
+  if (!cookieHeader) return null
+
+  const query = new URLSearchParams({ tab, page: String(page), limit: '10' })
+  if (filters.search) query.set('search', filters.search)
+  if (filters.genreIds.length > 0) query.set('genre_ids', filters.genreIds.join(','))
+  if (filters.status) query.set('status', filters.status)
+
+  try {
+    const response = await fetch(`${serverApiUrl()}/writer/contents?${query}`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json', Cookie: cookieHeader },
+    })
+    if (!response.ok) return null
+    return await response.json() as WriterContentsResponse
   } catch {
     return null
   }

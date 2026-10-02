@@ -9,6 +9,10 @@ export const writerContentsQuerySchema = t.Object({
   tab: t.UnionEnum(['novel', 'cartoon']),
   page: t.Optional(t.Numeric({ minimum: 1, multipleOf: 1 })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
+  search: t.Optional(t.String({ maxLength: 120 })),
+  genre_ids: t.Optional(t.String({ maxLength: 1100 })),
+  // UnionEnum defaults to the first status; an omitted filter must mean all statuses.
+  status: t.Optional(t.Union(STORY_STATUSES.map((value) => t.Literal(value)))),
 })
 
 export const createWriterContentBodySchema = t.Object({
