@@ -21,7 +21,7 @@ WORKDIR /app/apps/web
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG API_INTERNAL_URL
 ENV API_INTERNAL_URL=${API_INTERNAL_URL}
-RUN bun run build
+RUN bun run build --webpack
 
 FROM base AS runner
 WORKDIR /app
