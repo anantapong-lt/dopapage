@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { db } from '../../db'
 import { CHAPTER_STATUS, MODERATION_STATUS, STORY_STATUS, type StoryStatus, type StoryType } from '../../models/story.model'
 import { USER_STATUS, WRITER_STATUS } from '../../models/user.model'
+import { createPublicAssetUrl, isLocalAssetKey } from '../assets/local-asset.service'
 
 export interface PublicReaderChapter {
   id: string
@@ -507,16 +508,16 @@ export async function findNovelChapterContent(chapterId: string): Promise<{
   `
   const content = chapter?.content ?? ''
   const sourceHash = createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex')
-  const audioVersions = await db<Array<{ voice_slot: ChapterAudioVersion['voice_slot']; audio_url: string; audio_timeline: unknown }>>`
-    SELECT voice_slot, audio_url, audio_timeline
+  const audioVersions = await db<Array<{ voice_slot: ChapterAudioVersion['voice_slot']; audio_key: string | null; audio_url: string; audio_timeline: unknown }>>`
+    SELECT voice_slot, audio_key, audio_url, audio_timeline
     FROM (
       SELECT DISTINCT ON (voice_slot)
-        voice_slot, NULLIF(audio_url, '') AS audio_url, audio_timeline, created_at, id
+        voice_slot, NULLIF(audio_key, '') AS audio_key, NULLIF(audio_url, '') AS audio_url, audio_timeline, created_at, id
       FROM tts_jobs
       WHERE chapter_id = ${chapterId}
         AND status = 'done'
         AND source_hash = ${sourceHash}
-        AND NULLIF(audio_url, '') IS NOT NULL
+        AND (NULLIF(audio_key, '') IS NOT NULL OR NULLIF(audio_url, '') IS NOT NULL)
       ORDER BY voice_slot, created_at DESC, id DESC
     ) AS audio_variants
     ORDER BY
@@ -529,7 +530,12 @@ export async function findNovelChapterContent(chapterId: string): Promise<{
   `
   const parsedAudioVersions = audioVersions.map((audio) => ({
     voice_slot: audio.voice_slot,
-    audio_url: audio.audio_url,
+    // Local files are served from the current API origin. Rebuilding the URL
+    // prevents old jobs created with localhost from leaking that unusable
+    // origin to readers (and being blocked by the Web CSP).
+    audio_url: audio.audio_key && isLocalAssetKey(audio.audio_key)
+      ? createPublicAssetUrl(audio.audio_key)
+      : audio.audio_url,
     audio_timeline: parseAudioTimeline(audio.audio_timeline),
   }))
   const audio = parsedAudioVersions[0]
