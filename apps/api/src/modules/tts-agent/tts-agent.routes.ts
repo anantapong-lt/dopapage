@@ -34,7 +34,7 @@ export const ttsAgentRoutes = new Elysia({ prefix: '/writer/tts' })
     auth: USER_ROLE.WRITER, params: ttsJobParamsSchema, body: agentWorkerBodySchema,
   })
   .post('/jobs/:id/complete', ({ currentUser, params, body }) => completeTtsJobResponse(
-    currentUser.id, params.id, body.worker_id, body.duration_seconds,
+    currentUser.id, params.id, body.worker_id, body.duration_seconds, body.audio_timeline ?? [],
   ), { auth: USER_ROLE.WRITER, params: ttsJobParamsSchema, body: agentCompleteBodySchema })
   .post('/jobs/:id/fail', ({ currentUser, params, body }) => failTtsJobResponse(
     currentUser.id, params.id, body.worker_id, body.error_message,

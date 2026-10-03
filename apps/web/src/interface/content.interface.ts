@@ -138,6 +138,11 @@ export interface PublicChapterResponse {
   chapters: PublicReaderChapter[]
   content: string | null
   audio_url: string | null
+  audio_timeline: Array<{
+    text: string
+    start_seconds: number
+    end_seconds: number
+  }>
   pages: PublicMangaChapterPage[]
   manga_page_pagination: {
     page: number

@@ -492,13 +492,13 @@ class VoxCpmRenderer:
         self._request({"type": WorkerMessage.PRELOAD})
 
     def render(self, text: str, voice_slot: str, settings: RenderSettings, progress: Callable[[int, int], None],
-               check_cancel: Callable[[], None] | None = None) -> tuple[Path, float]:
+               check_cancel: Callable[[], None] | None = None) -> tuple[Path, float, list[dict[str, float | str]]]:
         result = self._request(
             {"type": WorkerMessage.RENDER, "text": text, "voice_slot": voice_slot, "settings": settings.to_wire()},
             progress,
             check_cancel,
         )
-        return Path(result["path"]), float(result["duration"])
+        return Path(result["path"]), float(result["duration"]), result.get("timeline", [])
 
     def request_shutdown(self) -> None:
         self._shutdown.set()
@@ -729,7 +729,7 @@ class _LocalVoxCpmRenderer:
             f"(ดีที่สุด {longest_duration:.2f}s, ควรอย่างน้อย {minimum_duration:.2f}s)"
         )
 
-    def render(self, text: str, voice_slot: str, settings: RenderSettings, progress: Callable[[int, int], None]) -> tuple[Path, float]:
+    def render(self, text: str, voice_slot: str, settings: RenderSettings, progress: Callable[[int, int], None]) -> tuple[Path, float, list[dict[str, float | str]]]:
         ffmpeg = verify_ffmpeg()
         self._load_model()
         chunks = self._chunks(text)
@@ -737,6 +737,7 @@ class _LocalVoxCpmRenderer:
             raise RenderError("ตอนนี้ไม่มีข้อความสำหรับสร้างเสียง")
         workspace = Path(tempfile.mkdtemp(prefix="readji-tts-"))
         total_duration = 0.0
+        timeline: list[dict[str, float | str]] = []
         render_started = time.monotonic()
         prompt_cache = self._prompt_cache(voice_slot)
         self._prepare_kv_capacity(chunks, prompt_cache)
@@ -750,7 +751,13 @@ class _LocalVoxCpmRenderer:
                         audio = self._generate_chunk(chunk, voice_slot, prompt_cache, settings)
                     self._profile_pending = False
                     encoder.submit(audio)
-                    total_duration += len(audio) / self.sample_rate
+                    chunk_duration = len(audio) / self.sample_rate
+                    timeline.append({
+                        "text": chunk,
+                        "start_seconds": total_duration,
+                        "end_seconds": total_duration + chunk_duration,
+                    })
+                    total_duration += chunk_duration
                     elapsed = time.monotonic() - chunk_started
                     print(f"[TTS] chunk {index}/{len(chunks)}: {elapsed:.2f}s, audio {len(audio) / self.sample_rate:.2f}s, RTF {elapsed / (len(audio) / self.sample_rate):.3f} (CPU encoding overlaps GPU)", flush=True)
                     progress(index, len(chunks))
@@ -761,7 +768,7 @@ class _LocalVoxCpmRenderer:
             raise RenderError("ไม่พบ FFmpeg ของแอป กรุณากดเริ่มงานเพื่อติดตั้งใหม่") from error
         elapsed = time.monotonic() - render_started
         print(f"[TTS] chapter: {elapsed:.2f}s, audio {total_duration:.2f}s, RTF {elapsed / total_duration:.3f} (excludes model preload)", flush=True)
-        return output, total_duration
+        return output, total_duration, timeline
 
 
 def _worker_main() -> None:
@@ -790,11 +797,11 @@ def _worker_main() -> None:
                     send({"type": WorkerMessage.RESULT})
                 elif kind == WorkerMessage.RENDER:
                     settings = RenderSettings.from_wire(command.get("settings"))
-                    output, duration = renderer.render(
+                    output, duration, timeline = renderer.render(
                         command["text"], command["voice_slot"], settings,
                         lambda done, total: send({"type": WorkerMessage.PROGRESS, "done": done, "total": total}),
                     )
-                    send({"type": WorkerMessage.RESULT, "path": str(output), "duration": duration})
+                    send({"type": WorkerMessage.RESULT, "path": str(output), "duration": duration, "timeline": timeline})
                 else:
                     raise RenderError("คำสั่ง worker ไม่ถูกต้อง")
             except Exception as error:

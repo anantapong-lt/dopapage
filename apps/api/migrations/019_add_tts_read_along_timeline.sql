@@ -1,0 +1,2 @@
+ALTER TABLE public.tts_jobs
+  ADD COLUMN IF NOT EXISTS audio_timeline JSONB NOT NULL DEFAULT '[]'::JSONB;

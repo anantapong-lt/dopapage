@@ -470,7 +470,11 @@ export async function findPublicReaderChapters(
   `
 }
 
-export async function findNovelChapterContent(chapterId: string): Promise<{ content: string; audio_url: string | null }> {
+export type AudioTimelineEntry = { text: string; start_seconds: number; end_seconds: number }
+
+export async function findNovelChapterContent(chapterId: string): Promise<{
+  content: string; audio_url: string | null; audio_timeline: AudioTimelineEntry[]
+}> {
   const [chapter] = await db<Array<{ content: string }>>`
     SELECT content
     FROM novel_chapter_contents
@@ -479,8 +483,8 @@ export async function findNovelChapterContent(chapterId: string): Promise<{ cont
   `
   const content = chapter?.content ?? ''
   const sourceHash = createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex')
-  const [audio] = await db<Array<{ audio_url: string | null }>>`
-    SELECT NULLIF(audio_url, '') AS audio_url
+  const [audio] = await db<Array<{ audio_url: string | null; audio_timeline: AudioTimelineEntry[] }>>`
+    SELECT NULLIF(audio_url, '') AS audio_url, audio_timeline
     FROM tts_jobs
     WHERE chapter_id = ${chapterId}
       AND status = 'done'
@@ -490,7 +494,7 @@ export async function findNovelChapterContent(chapterId: string): Promise<{ cont
     LIMIT 1
   `
 
-  return { content, audio_url: audio?.audio_url ?? null }
+  return { content, audio_url: audio?.audio_url ?? null, audio_timeline: audio?.audio_timeline ?? [] }
 }
 
 export async function findMangaChapterPages(

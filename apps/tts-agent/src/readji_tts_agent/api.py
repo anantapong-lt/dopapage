@@ -82,9 +82,9 @@ class ApiClient:
     def upload_url(self, job_id: str, worker_id: str) -> dict[str, Any]:
         return self._request("POST", f"/writer/tts/jobs/{job_id}/upload-url", json={"worker_id": worker_id})
 
-    def complete_job(self, job_id: str, worker_id: str, duration_seconds: float) -> None:
+    def complete_job(self, job_id: str, worker_id: str, duration_seconds: float, audio_timeline: list[dict[str, Any]]) -> None:
         self._request("POST", f"/writer/tts/jobs/{job_id}/complete", json={
-            "worker_id": worker_id, "duration_seconds": duration_seconds,
+            "worker_id": worker_id, "duration_seconds": duration_seconds, "audio_timeline": audio_timeline,
         })
 
     def fail_job(self, job_id: str, worker_id: str, message: str) -> None:

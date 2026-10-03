@@ -42,8 +42,11 @@ export async function progressTtsJobResponse(userId: string, jobId: string, work
 export async function uploadTtsJobResponse(userId: string, jobId: string, workerId: string) {
   try { return await createTtsUploadUrl(userId, jobId, workerId) } catch (error) { return respond(error) }
 }
-export async function completeTtsJobResponse(userId: string, jobId: string, workerId: string, duration: number) {
-  try { return await completeTtsJob(userId, jobId, workerId, duration) } catch (error) { return respond(error) }
+export async function completeTtsJobResponse(
+  userId: string, jobId: string, workerId: string, duration: number,
+  audioTimeline: Array<{ text: string; start_seconds: number; end_seconds: number }>,
+) {
+  try { return await completeTtsJob(userId, jobId, workerId, duration, audioTimeline) } catch (error) { return respond(error) }
 }
 export async function failTtsJobResponse(userId: string, jobId: string, workerId: string, message: string) {
   try { await failTtsJob(userId, jobId, workerId, message); return { success: true } } catch (error) { return respond(error) }

@@ -131,6 +131,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
               content={data.content ?? ''}
               settings={settings}
               audioUrl={data.audio_url}
+              audioTimeline={data.audio_timeline}
               showAudioPlayer={showAudioPlayer}
               onBackToContent={() => setShowAudioPlayer(false)}
             />

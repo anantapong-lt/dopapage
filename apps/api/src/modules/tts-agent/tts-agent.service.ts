@@ -187,7 +187,23 @@ export async function createTtsUploadUrl(userId: string, jobId: string, workerId
   return { audio_key: upload.key, upload_url: upload.uploadUrl }
 }
 
-export async function completeTtsJob(userId: string, jobId: string, workerId: string, durationSeconds: number) {
+export async function completeTtsJob(
+  userId: string, jobId: string, workerId: string, durationSeconds: number,
+  audioTimeline: Array<{ text: string; start_seconds: number; end_seconds: number }>,
+) {
+  const timeline = audioTimeline.map((entry) => ({
+    text: entry.text.trim(),
+    start_seconds: Number(entry.start_seconds),
+    end_seconds: Number(entry.end_seconds),
+  })).filter((entry) => (
+    entry.text.length > 0
+    && Number.isFinite(entry.start_seconds)
+    && Number.isFinite(entry.end_seconds)
+    && entry.start_seconds >= 0
+    && entry.end_seconds > entry.start_seconds
+    && entry.end_seconds <= durationSeconds + 1
+  ))
+  if (timeline.length !== audioTimeline.length) throw new TtsAgentError('Invalid audio timeline', 400)
   const [current] = await db<{ content: string; source_hash: string }[]>`
     SELECT n.content, j.source_hash FROM tts_jobs j
     INNER JOIN novel_chapter_contents n ON n.chapter_id = j.chapter_id
@@ -209,7 +225,7 @@ export async function completeTtsJob(userId: string, jobId: string, workerId: st
   const supersededAudioKeys = await db.begin(async (transaction) => {
     const [completed] = await transaction<{ chapter_id: string }[]>`
       UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
-        duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), completed_at = NOW(),
+        duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), audio_timeline = ${JSON.stringify(timeline)}::JSONB, completed_at = NOW(),
         lease_expires_at = NULL, updated_at = NOW()
       WHERE id = ${jobId} AND requested_by = ${userId} AND worker_id = ${workerId}::UUID
         AND status = ${TTS_JOB_STATUS.PROCESSING} AND lease_expires_at > NOW()

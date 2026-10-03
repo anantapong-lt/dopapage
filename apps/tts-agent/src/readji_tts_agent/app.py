@@ -888,7 +888,7 @@ class PreviewRenderThread(QThread):
 
     def run(self) -> None:
         try:
-            output, _duration = self.renderer.render(
+            output, _duration, _timeline = self.renderer.render(
                 self.text,
                 self.voice_slot,
                 self.settings,
@@ -1184,7 +1184,7 @@ class RenderThread(QThread):
         except OSError:
             performance_logger().info("temporary output cleanup deferred")
 
-    def _upload_job(self, job: dict, output: Path, duration: float, http: httpx.Client) -> str | None:
+    def _upload_job(self, job: dict, output: Path, duration: float, timeline: list[dict], http: httpx.Client) -> str | None:
         last_poll = 0.0
 
         def check_cancel() -> None:
@@ -1220,7 +1220,7 @@ class RenderThread(QThread):
             performance_logger().info("job=%s upload_seconds=%.3f", job["id"], time.monotonic() - started)
             check_cancel()
             started = time.monotonic()
-            self.client.complete_job(job["id"], self.worker_id, duration)
+            self.client.complete_job(job["id"], self.worker_id, duration, timeline)
             performance_logger().info("job=%s complete_seconds=%.3f", job["id"], time.monotonic() - started)
             self.job_completed.emit(job["id"])
             return None
@@ -1259,7 +1259,7 @@ class RenderThread(QThread):
                         self.started_at = time.monotonic()
                         self.started_job.emit(job["chapter_id"], f"{job['story_title']} — {job['chapter_title']}", job["id"], job["voice_slot"])
                         logger.info("job=%s render_started", job["id"])
-                        output, duration = self.renderer.render(
+                        output, duration, timeline = self.renderer.render(
                             job["text"], job["voice_slot"], self.settings,
                             lambda done, total: self._progress(job["id"], done, total),
                             check_cancel=self._raise_if_cancelled,
@@ -1282,7 +1282,7 @@ class RenderThread(QThread):
                             if message:
                                 errors.append(message)
                             self._raise_if_cancelled()
-                        pending = uploader.submit(self._upload_job, job, output, duration, http)
+                        pending = uploader.submit(self._upload_job, job, output, duration, timeline, http)
                         job = None
                         output = None
                         self.job_id = None

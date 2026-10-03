@@ -324,6 +324,7 @@ export async function getPublicChapter(
         chapters,
         content: novelContent?.content ?? null,
         audio_url: novelContent?.audio_url ?? null,
+        audio_timeline: novelContent?.audio_timeline ?? [],
         pages,
         manga_page_pagination: {
           page,

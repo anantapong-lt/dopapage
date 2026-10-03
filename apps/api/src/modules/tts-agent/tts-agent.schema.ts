@@ -35,6 +35,11 @@ export const agentProgressBodySchema = t.Object({
 export const agentCompleteBodySchema = t.Object({
   worker_id: t.String({ format: 'uuid' }),
   duration_seconds: t.Numeric({ minimum: 0 }),
+  audio_timeline: t.Optional(t.Array(t.Object({
+    text: t.String({ minLength: 1, maxLength: 600 }),
+    start_seconds: t.Numeric({ minimum: 0 }),
+    end_seconds: t.Numeric({ minimum: 0 }),
+  }), { maxItems: 10000 })),
 })
 
 export const agentWorkerBodySchema = t.Object({ worker_id: t.String({ format: 'uuid' }) })
