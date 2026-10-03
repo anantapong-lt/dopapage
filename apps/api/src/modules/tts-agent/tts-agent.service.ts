@@ -108,7 +108,10 @@ export async function queueWriterTtsJob(userId: string, chapterId: string, voice
     INSERT INTO tts_jobs (chapter_id, requested_by, source_hash, voice_slot)
     VALUES (${chapterId}, ${userId}, ${hash}, ${voiceSlot})
     ON CONFLICT (requested_by, chapter_id, source_hash, voice_slot)
-      WHERE status IN (${TTS_JOB_STATUS.QUEUED}, ${TTS_JOB_STATUS.PROCESSING})
+      -- Partial-index inference cannot use bind parameters after PostgreSQL
+      -- switches this prepared statement to a generic plan. Keep this
+      -- predicate identical to tts_jobs_one_active_render_idx.
+      WHERE status IN ('queued', 'processing')
       DO UPDATE SET updated_at = NOW()
     RETURNING id, status, voice_slot, created_at
   `
