@@ -21,6 +21,28 @@ export interface ReadingSettings {
   autoPurchase: boolean
 }
 
+function parseReadingSettings(value: unknown): ReadingSettings | undefined {
+  if (typeof value === 'string') {
+    try {
+      return parseReadingSettings(JSON.parse(value))
+    } catch {
+      return undefined
+    }
+  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+
+  const settings = value as Partial<ReadingSettings>
+  if (
+    typeof settings.fontSize !== 'number'
+    || typeof settings.fontFamily !== 'string'
+    || typeof settings.theme !== 'string'
+    || typeof settings.autoNext !== 'boolean'
+    || typeof settings.autoPurchase !== 'boolean'
+  ) return undefined
+
+  return settings as ReadingSettings
+}
+
 export interface ProfileStory {
   id: string
   title: string
@@ -367,26 +389,32 @@ export async function findMyProfile(userId: string): Promise<PublicProfile | und
 }
 
 export async function findReadingSettings(userId: string): Promise<ReadingSettings | undefined> {
-  const [user] = await db<Array<{ reading_settings: ReadingSettings }>>`
+  const [user] = await db<Array<{ reading_settings: unknown }>>`
     SELECT reading_settings
     FROM users
     WHERE id = ${userId} AND deleted_at IS NULL
     LIMIT 1
   `
-  return user?.reading_settings
+  return parseReadingSettings(user?.reading_settings)
 }
 
 export async function updateReadingSettings(
   userId: string,
   settings: ReadingSettings,
 ): Promise<ReadingSettings | undefined> {
-  const [user] = await db<Array<{ reading_settings: ReadingSettings }>>`
+  const [user] = await db<Array<{ reading_settings: unknown }>>`
     UPDATE users
-    SET reading_settings = ${JSON.stringify(settings)}::JSONB, updated_at = NOW()
+    SET reading_settings = jsonb_build_object(
+      'fontSize', ${settings.fontSize},
+      'fontFamily', ${settings.fontFamily},
+      'theme', ${settings.theme},
+      'autoNext', ${settings.autoNext},
+      'autoPurchase', ${settings.autoPurchase}
+    ), updated_at = NOW()
     WHERE id = ${userId} AND deleted_at IS NULL
     RETURNING reading_settings
   `
-  return user?.reading_settings
+  return parseReadingSettings(user?.reading_settings)
 }
 
 export async function updateMyProfile(
