@@ -1257,7 +1257,7 @@ class VoiceQueueDialog(QDialog):
         layout.addWidget(SubtitleLabel("เลือกเสียงบรรยาย", self))
         layout.addWidget(BodyLabel(
             f"ตอน {chapter['chapter_number']}: {chapter['chapter_title']}\n"
-            "เลือกได้หลายเสียง ระบบจะเข้าคิวทั้งหมดและสร้างต่อเนื่องอัตโนมัติ",
+            "เลือกได้หลายเสียง ระบบจะเพิ่มทั้งหมดเข้าคิว แล้วรอให้กดเริ่มประมวลผลคิวทั้งหมด",
             self,
         ))
 
@@ -1710,10 +1710,7 @@ class JobsPage(QWidget):
         if self.cancelling_all and not self.queue_threads and self.cancel_all_thread is None:
             self._start_cancel_all_request()
         elif not self.queue_threads:
-            if thread.results:
-                self.render_next()
-            else:
-                self._continue_start()
+            self._continue_start()
     def render_next(self) -> None:
         if self.shutdown_requested or self.cancelling_all or self.logout_thread is not None or not self.client or self.thread is not None: return
         self.start_requested = True
