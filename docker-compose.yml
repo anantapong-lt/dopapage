@@ -50,8 +50,8 @@ services:
 
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
       args:
         API_INTERNAL_URL: http://api:4000
     restart: unless-stopped
@@ -67,8 +67,8 @@ services:
 
   admin:
     build:
-      context: ./apps/admin
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/admin/Dockerfile
     restart: unless-stopped
     ports:
       - "3002:3002"
