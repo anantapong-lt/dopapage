@@ -22,10 +22,10 @@ from PySide6.QtCore import QAbstractTableModel, QEvent, QLocale, QModelIndex, QS
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import QApplication, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QSpinBox, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, EditableComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, EditableComboBox, FluentIcon, FluentWindow, IndeterminateProgressRing, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
 from qfluentwidgets.common.router import qrouter
 
-from .api import ApiClient, ApiError
+from .api import ApiClient, ApiError, ApiUnauthorizedError
 from .renderer import RenderError, RenderSettings, VoxCpmRenderer, performance_logger
 from .ffmpeg_setup import FFmpegSetupCancelled, ffmpeg_path, install_ffmpeg, verify_ffmpeg
 from .secure_store import clear_login_credentials, clear_refresh_token, load_login_credentials, load_refresh_token, save_login_credentials, save_refresh_token
@@ -637,23 +637,17 @@ class ModelPreparingDialog(QDialog):
         # able to move the window or review the queue while it completes.
         self.setModal(False)
         self.setWindowModality(Qt.WindowModality.NonModal)
-        self.setFixedWidth(480)
-        self.setStyleSheet("QDialog#modelPreparingDialog { background: #fafafa; } QLabel { color: #18181b; }")
+        self.setFixedSize(360, 170)
+        self.setStyleSheet("QDialog#modelPreparingDialog { background: #fafafa; } QLabel { color: #18181b; background: transparent; }")
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.addWidget(SubtitleLabel("กำลังเตรียม VoxCPM2", self))
-        self.message = BodyLabel("กำลังโหลดโมเดลขึ้น GPU และเตรียมพร้อมใช้งาน\nเมื่อพร้อมแล้วจะเริ่มงานอัตโนมัติ ไม่ต้องกดซ้ำ", self)
-        self.message.setWordWrap(True)
+        layout.setContentsMargins(28, 28, 28, 28)
+        layout.setSpacing(12)
+        self.spinner = IndeterminateProgressRing(self)
+        self.spinner.setFixedSize(34, 34)
+        layout.addWidget(self.spinner, 0, Qt.AlignmentFlag.AlignHCenter)
+        self.message = BodyLabel("กำลังโหลดโมเดลเสียงเข้าสู่ GPU...", self)
+        self.message.setAlignment(Qt.AlignmentFlag.AlignHCenter)
         layout.addWidget(self.message)
-        self.progress = QProgressBar(self)
-        self.progress.setRange(0, 0)
-        layout.addWidget(self.progress)
-        hint = BodyLabel("ผล compile จะเก็บบนดิสก์เพื่อใช้ซ้ำ ครั้งแรกอาจใช้เวลาหลายนาที\nเปิดแอพใหม่ยังต้องโหลดเข้า GPU และ warm-up\nยกเลิกได้เพื่อไม่ให้เริ่มงานต่อ โมเดลจะยังเตรียมอยู่เบื้องหลัง", self)
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
-        cancel = PushButton("ยกเลิกการเริ่มงาน", self)
-        cancel.clicked.connect(self.reject)
-        layout.addWidget(cancel)
 
 
 class ShutdownDialog(QDialog):
@@ -1624,6 +1618,8 @@ class JobsPage(QWidget):
             if self.story_filter.currentData() != selected:
                 self.page = 1
             self.load_chapters()
+        except ApiUnauthorizedError:
+            self.logout()
         except (ApiError, httpx.HTTPError) as error:
             InfoBar.error("โหลดรายชื่อเรื่องไม่สำเร็จ", str(error), parent=self, position=InfoBarPosition.TOP)
 
@@ -1710,6 +1706,8 @@ class JobsPage(QWidget):
                     self.table.openPersistentEditor(index)
             QTimer.singleShot(0, self._resize_table_columns)
             self.table.viewport().update()
+        except ApiUnauthorizedError:
+            self.logout()
         except (ApiError, httpx.HTTPError) as error:
             self.total_pages = 0
             self._update_pagination(0)

@@ -11,6 +11,10 @@ class ApiError(RuntimeError):
     pass
 
 
+class ApiUnauthorizedError(ApiError):
+    """The current access token is no longer accepted by the API."""
+
+
 @dataclass
 class ApiClient:
     base_url: str
@@ -40,6 +44,8 @@ class ApiClient:
                 message = response.json().get("message")
             except ValueError:
                 message = None
+            if response.status_code == 401:
+                raise ApiUnauthorizedError(message or "กรุณาเข้าสู่ระบบ")
             raise ApiError(message or f"API returned HTTP {response.status_code}")
         return response.json()
 
