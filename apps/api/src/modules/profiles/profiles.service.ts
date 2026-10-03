@@ -405,11 +405,11 @@ export async function updateReadingSettings(
   const [user] = await db<Array<{ reading_settings: unknown }>>`
     UPDATE users
     SET reading_settings = jsonb_build_object(
-      'fontSize', ${settings.fontSize},
-      'fontFamily', ${settings.fontFamily},
-      'theme', ${settings.theme},
-      'autoNext', ${settings.autoNext},
-      'autoPurchase', ${settings.autoPurchase}
+      'fontSize', ${settings.fontSize}::INTEGER,
+      'fontFamily', ${settings.fontFamily}::TEXT,
+      'theme', ${settings.theme}::TEXT,
+      'autoNext', ${settings.autoNext}::BOOLEAN,
+      'autoPurchase', ${settings.autoPurchase}::BOOLEAN
     ), updated_at = NOW()
     WHERE id = ${userId} AND deleted_at IS NULL
     RETURNING reading_settings
