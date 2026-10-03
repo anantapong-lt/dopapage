@@ -34,6 +34,30 @@ export const updateMyProfileBodySchema = t.Object({
   social_links: t.Optional(profileSocialLinksSchema),
 })
 
+export const readingSettingsSchema = t.Object({
+  fontSize: t.Numeric({ minimum: 16, maximum: 32, multipleOf: 1 }),
+  fontFamily: t.Union([
+    t.Literal('sans'),
+    t.Literal('serif'),
+    t.Literal('arial'),
+    t.Literal('cordia-new'),
+    t.Literal('tf-nopscript'),
+    t.Literal('sarabun'),
+    t.Literal('noto-serif-thai'),
+    t.Literal('prompt'),
+    t.Literal('layiji-mahaniyom'),
+  ]),
+  theme: t.Union([
+    t.Literal('light'),
+    t.Literal('sepia'),
+    t.Literal('gray'),
+    t.Literal('sage'),
+    t.Literal('dark'),
+  ]),
+  autoNext: t.Boolean(),
+  autoPurchase: t.Boolean(),
+})
+
 export const updateMyProfileCoverBodySchema = t.Object({
   cover: t.File({
     type: ['image/jpeg', 'image/png', 'image/webp'],

@@ -39,6 +39,7 @@ export function ChapterReaderHeader({
   onAudioPlayingChange,
   audioRef,
   onNavigate,
+  onAutoReadEnded,
 }: {
   slug: string
   storyTitle: string
@@ -55,14 +56,13 @@ export function ChapterReaderHeader({
   onAudioPlayingChange: (isPlaying: boolean) => void
   audioRef: RefObject<HTMLAudioElement | null>
   onNavigate: (chapter: PublicReaderChapter) => void
+  onAutoReadEnded: () => Promise<void>
 }) {
   const theme = READING_THEMES[settings.theme]
   const [autoReadOpen, setAutoReadOpen] = useState(false)
   const [duration, setDuration] = useState(0)
   const [startTime, setStartTime] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1)
-  const [autoNext, setAutoNext] = useState(true)
-  const [autoBookmark, setAutoBookmark] = useState(false)
   const [isModalPlaying, setIsModalPlaying] = useState(false)
 
   useEffect(() => {
@@ -116,6 +116,7 @@ export function ChapterReaderHeader({
         onEnded={() => {
           setIsModalPlaying(false)
           onAudioPlayingChange(false)
+          void onAutoReadEnded()
         }}
         onTimeUpdate={(event) => {
           const currentTime = event.currentTarget.currentTime
@@ -247,13 +248,13 @@ export function ChapterReaderHeader({
                 </section>
 
                 <section className="divide-y rounded-2xl border bg-white px-3">
-                  <button type="button" className="flex w-full items-center justify-between py-3 text-left" onClick={() => setAutoNext((current) => !current)}>
+                  <button type="button" className="flex w-full items-center justify-between py-3 text-left" onClick={() => onSettingsChange({ ...settings, autoNext: !settings.autoNext })}>
                     <span><span className="block text-sm font-bold">ตอนต่อไปอัตโนมัติ</span><span className="block text-xs text-muted-foreground">เมื่อฟังจบ ระบบจะไปตอนถัดไป</span></span>
-                    <span role="switch" aria-checked={autoNext} className={`relative h-6 w-10 rounded-full border transition-colors ${autoNext ? 'border-primary bg-primary' : 'border-neutral-300 bg-neutral-200'}`}><span className={`absolute top-1 size-4 rounded-full bg-white shadow-md transition-transform ${autoNext ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                    <span role="switch" aria-checked={settings.autoNext} className={`relative h-6 w-10 rounded-full border transition-colors ${settings.autoNext ? 'border-primary bg-primary' : 'border-neutral-300 bg-neutral-200'}`}><span className={`absolute top-1 size-4 rounded-full bg-white shadow-md transition-transform ${settings.autoNext ? 'translate-x-5' : 'translate-x-1'}`} /></span>
                   </button>
-                  <button type="button" className="flex w-full items-center justify-between py-3 text-left" onClick={() => setAutoBookmark((current) => !current)}>
+                  <button type="button" className="flex w-full items-center justify-between py-3 text-left" onClick={() => onSettingsChange({ ...settings, autoPurchase: !settings.autoPurchase })}>
                     <span><span className="block text-sm font-bold">ซื้อตอนอัตโนมัติ</span><span className="block text-xs text-muted-foreground">ซื้อและปลดล็อกตอนถัดไปเมื่อจำเป็น</span></span>
-                    <span role="switch" aria-checked={autoBookmark} className={`relative h-6 w-10 rounded-full border transition-colors ${autoBookmark ? 'border-primary bg-primary' : 'border-neutral-300 bg-neutral-200'}`}><span className={`absolute top-1 size-4 rounded-full bg-white shadow-md transition-transform ${autoBookmark ? 'translate-x-5' : 'translate-x-1'}`} /></span>
+                    <span role="switch" aria-checked={settings.autoPurchase} className={`relative h-6 w-10 rounded-full border transition-colors ${settings.autoPurchase ? 'border-primary bg-primary' : 'border-neutral-300 bg-neutral-200'}`}><span className={`absolute top-1 size-4 rounded-full bg-white shadow-md transition-transform ${settings.autoPurchase ? 'translate-x-5' : 'translate-x-1'}`} /></span>
                   </button>
                 </section>
 

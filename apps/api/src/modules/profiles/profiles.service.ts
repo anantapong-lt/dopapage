@@ -13,6 +13,14 @@ export interface ProfileSocialLinks {
   website?: string
 }
 
+export interface ReadingSettings {
+  fontSize: number
+  fontFamily: 'sans' | 'serif' | 'arial' | 'cordia-new' | 'tf-nopscript' | 'sarabun' | 'noto-serif-thai' | 'prompt' | 'layiji-mahaniyom'
+  theme: 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
+  autoNext: boolean
+  autoPurchase: boolean
+}
+
 export interface ProfileStory {
   id: string
   title: string
@@ -356,6 +364,29 @@ export async function findMyProfile(userId: string): Promise<PublicProfile | und
   ])
 
   return { ...profile, story_counts: storyCounts, stories, pagination: { page: 1, limit: stories.length, has_next_page: false } }
+}
+
+export async function findReadingSettings(userId: string): Promise<ReadingSettings | undefined> {
+  const [user] = await db<Array<{ reading_settings: ReadingSettings }>>`
+    SELECT reading_settings
+    FROM users
+    WHERE id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `
+  return user?.reading_settings
+}
+
+export async function updateReadingSettings(
+  userId: string,
+  settings: ReadingSettings,
+): Promise<ReadingSettings | undefined> {
+  const [user] = await db<Array<{ reading_settings: ReadingSettings }>>`
+    UPDATE users
+    SET reading_settings = ${JSON.stringify(settings)}::JSONB, updated_at = NOW()
+    WHERE id = ${userId} AND deleted_at IS NULL
+    RETURNING reading_settings
+  `
+  return user?.reading_settings
 }
 
 export async function updateMyProfile(

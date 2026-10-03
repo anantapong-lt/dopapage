@@ -1,11 +1,16 @@
 import { Elysia } from 'elysia'
 import { authMiddleware } from '../../middleware/auth.middleware'
-import { getMyFavoriteStoriesResponse, getMyProfileResponse, getPublicProfileResponse, getRandomWriterProfilesResponse, updateMyProfileAvatarResponse, updateMyProfileCoverResponse, updateMyProfileResponse } from './profiles.controller'
-import { favoriteStoriesQuerySchema, profileStoriesQuerySchema, profileUsernameParamsSchema, randomProfilesQuerySchema, updateMyProfileAvatarBodySchema, updateMyProfileBodySchema, updateMyProfileCoverBodySchema } from './profiles.schema'
+import { getMyFavoriteStoriesResponse, getMyProfileResponse, getPublicProfileResponse, getRandomWriterProfilesResponse, getReadingSettingsResponse, updateMyProfileAvatarResponse, updateMyProfileCoverResponse, updateMyProfileResponse, updateReadingSettingsResponse } from './profiles.controller'
+import { favoriteStoriesQuerySchema, profileStoriesQuerySchema, profileUsernameParamsSchema, randomProfilesQuerySchema, readingSettingsSchema, updateMyProfileAvatarBodySchema, updateMyProfileBodySchema, updateMyProfileCoverBodySchema } from './profiles.schema'
 
 export const profilesRoutes = new Elysia({ prefix: '/profiles' })
   .use(authMiddleware)
   .get('/me', ({ currentUser }) => getMyProfileResponse(currentUser.id), { auth: true })
+  .get('/me/reading-settings', ({ currentUser }) => getReadingSettingsResponse(currentUser.id), { auth: true })
+  .put('/me/reading-settings', ({ currentUser, body }) => updateReadingSettingsResponse(currentUser.id, body), {
+    auth: true,
+    body: readingSettingsSchema,
+  })
   .get('/me/favorites', ({ currentUser, query }) => getMyFavoriteStoriesResponse(currentUser?.id, query.type, query.page, query.limit), {
     optionalAuth: true,
     query: favoriteStoriesQuerySchema,

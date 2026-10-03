@@ -5,12 +5,16 @@ export interface ReadingSettings {
   fontSize: number
   fontFamily: ReadingFont
   theme: ReadingTheme
+  autoNext: boolean
+  autoPurchase: boolean
 }
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   fontSize: 18,
   fontFamily: 'sans',
   theme: 'light',
+  autoNext: true,
+  autoPurchase: false,
 }
 
 export const READING_THEMES: Record<ReadingTheme, { label: string; background: string; text: string }> = {
@@ -31,40 +35,4 @@ export const READING_FONTS: Record<ReadingFont, { label: string; family: string;
   'noto-serif-thai': { label: 'Noto Serif Thai', family: 'var(--font-noto-serif-thai)' },
   prompt: { label: 'Prompt', family: 'var(--font-prompt)' },
   'layiji-mahaniyom': { label: 'Layiji มหานิยม', family: "'Layiji Mahaniyom', var(--font-sans)" },
-}
-
-const STORAGE_KEY = 'readji:reading-settings'
-const DEFAULT_FONT_MIGRATION_KEY = 'readji:reading-settings:default-font-v2'
-
-export function loadReadingSettings(): ReadingSettings {
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY)
-    const shouldApplyDefaultFont = !window.localStorage.getItem(DEFAULT_FONT_MIGRATION_KEY)
-    if (!stored) {
-      if (shouldApplyDefaultFont) window.localStorage.setItem(DEFAULT_FONT_MIGRATION_KEY, '1')
-      return DEFAULT_READING_SETTINGS
-    }
-
-    const parsed = JSON.parse(stored) as Partial<ReadingSettings>
-    const fontSize = typeof parsed.fontSize === 'number' ? Math.min(32, Math.max(16, parsed.fontSize)) : DEFAULT_READING_SETTINGS.fontSize
-    const fontFamily = parsed.fontFamily && parsed.fontFamily in READING_FONTS ? parsed.fontFamily : DEFAULT_READING_SETTINGS.fontFamily
-    const theme = parsed.theme && parsed.theme in READING_THEMES ? parsed.theme : DEFAULT_READING_SETTINGS.theme
-
-    if (shouldApplyDefaultFont) {
-      window.localStorage.setItem(DEFAULT_FONT_MIGRATION_KEY, '1')
-      return { fontSize, fontFamily: DEFAULT_READING_SETTINGS.fontFamily, theme }
-    }
-
-    return { fontSize, fontFamily, theme }
-  } catch {
-    return DEFAULT_READING_SETTINGS
-  }
-}
-
-export function saveReadingSettings(settings: ReadingSettings) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
-  } catch {
-    // Reading preferences are optional and can safely fall back to defaults.
-  }
 }

@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
+import { useAuth } from '@/components/auth/auth-provider'
 import { ChapterPurchaseDialog } from '@/components/content/chapter-purchase-dialog'
+import { purchaseChapters } from '@/controllers/chapter-purchase.controller'
+import { getReadingSettings, updateReadingSettings } from '@/controllers/reading-settings.controller'
 import type {
   PublicChapter,
   PublicChapterResponse,
@@ -10,10 +14,9 @@ import type {
 } from '@/interface/content.interface'
 import {
   DEFAULT_READING_SETTINGS,
-  loadReadingSettings,
-  saveReadingSettings,
   type ReadingSettings,
 } from '@/lib/reading-settings'
+import { ApiError } from '@/lib/api-client'
 import { ChapterNavigation } from './chapter-navigation'
 import { ChapterComments } from './chapter-comments'
 import { ChapterReaderHeader } from './chapter-reader-header'
@@ -30,6 +33,7 @@ function toPurchasableChapter(chapter: PublicReaderChapter): PublicChapter {
 
 export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterResponse; commentsEnabled: boolean }) {
   const router = useRouter()
+  const { accessToken, refresh, status, user } = useAuth()
   const [settings, setSettings] = useState<ReadingSettings>(DEFAULT_READING_SETTINGS)
   const [chapters, setChapters] = useState(data.chapters)
   const [pendingChapter, setPendingChapter] = useState<PublicReaderChapter | null>(null)
@@ -41,6 +45,8 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   const [isAutoReading, setIsAutoReading] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const isAutoAdvancingRef = useRef(false)
+  const hasChangedReadingSettingsRef = useRef(false)
 
   function seekAudio(time: number) {
     const audio = audioRef.current
@@ -51,8 +57,19 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   }
 
   useEffect(() => {
-    setSettings(loadReadingSettings())
-  }, [])
+    if (status !== 'authenticated' || !accessToken) return
+    let isCurrent = true
+    void getReadingSettings(accessToken)
+      .then(({ reading_settings }) => {
+        if (isCurrent && !hasChangedReadingSettingsRef.current) setSettings(reading_settings)
+      })
+      .catch(() => {
+        // Reader settings remain usable with defaults when the preference request fails.
+      })
+    return () => {
+      isCurrent = false
+    }
+  }, [accessToken, status])
 
   useEffect(() => {
     let previousScrollY = window.scrollY
@@ -77,8 +94,12 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   }, [])
 
   function updateSettings(nextSettings: ReadingSettings) {
+    hasChangedReadingSettingsRef.current = true
     setSettings(nextSettings)
-    saveReadingSettings(nextSettings)
+    if (status !== 'authenticated' || !accessToken) return
+    void updateReadingSettings(nextSettings, accessToken).catch(() => {
+      toast.error('ไม่สามารถบันทึกการตั้งค่าการอ่านได้ กรุณาลองใหม่อีกครั้ง')
+    })
   }
 
   function navigateToChapter(chapter: PublicReaderChapter) {
@@ -90,6 +111,51 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
     router.push(
       `/content/${encodeURIComponent(data.story.slug)}/${encodeURIComponent(String(Number(chapter.chapter_number)))}`,
     )
+  }
+
+  async function handleAutoReadEnded() {
+    const currentIndex = chapters.findIndex((chapter) => chapter.chapter_number === data.chapter.chapter_number)
+    const nextChapter = currentIndex >= 0 && currentIndex < chapters.length - 1
+      ? chapters[currentIndex + 1]
+      : null
+
+    if (!settings.autoNext || !nextChapter || isAutoAdvancingRef.current) return
+
+    if (nextChapter.can_read || !settings.autoPurchase) {
+      navigateToChapter(nextChapter)
+      return
+    }
+
+    const hasEnoughBalance = Number(user?.balance ?? 0) >= Number(nextChapter.price)
+    if (status !== 'authenticated' || !accessToken || !hasEnoughBalance) {
+      setPendingChapter(nextChapter)
+      return
+    }
+
+    isAutoAdvancingRef.current = true
+    try {
+      const result = await purchaseChapters([nextChapter.id], accessToken)
+      await refresh()
+      const purchasedIds = new Set(result.purchases.map((purchase) => purchase.chapter_id))
+      setChapters((current) => current.map((chapter) => (
+        purchasedIds.has(chapter.id)
+          ? { ...chapter, is_purchased: true, can_read: true }
+          : chapter
+      )))
+      router.push(
+        `/content/${encodeURIComponent(data.story.slug)}/${encodeURIComponent(String(Number(nextChapter.chapter_number)))}`,
+      )
+      toast.success('ซื้อตอนถัดไปอัตโนมัติสำเร็จแล้ว')
+    } catch (error) {
+      toast.error(
+        error instanceof ApiError
+          ? error.message
+          : 'ไม่สามารถซื้อตอนถัดไปอัตโนมัติได้ กรุณาลองใหม่อีกครั้ง',
+      )
+      setPendingChapter(nextChapter)
+    } finally {
+      isAutoAdvancingRef.current = false
+    }
   }
 
   function handlePurchased(chapterIds: string[]) {
@@ -130,6 +196,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           onAudioPlayingChange={setIsAutoReading}
           audioRef={audioRef}
           onNavigate={navigateToChapter}
+          onAutoReadEnded={handleAutoReadEnded}
         />
 
         <div className="overflow-hidden rounded-b-2xl sm:rounded-b-[1.75rem]">
