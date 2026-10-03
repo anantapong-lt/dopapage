@@ -73,7 +73,14 @@ export async function listWriterTtsChapters(
       LEFT JOIN LATERAL (
         SELECT id, status, voice_slot, completed_blocks, total_blocks
         FROM tts_jobs WHERE chapter_id = c.id AND requested_by = ${userId}
-        ORDER BY created_at DESC LIMIT 1
+        -- A multi-voice batch can have newer queued rows while another voice
+        -- is already rendering. Show the active work first in the Agent UI.
+        ORDER BY CASE status
+          WHEN ${TTS_JOB_STATUS.PROCESSING} THEN 0
+          WHEN ${TTS_JOB_STATUS.QUEUED} THEN 1
+          ELSE 2
+        END, created_at DESC
+        LIMIT 1
       ) j ON TRUE
       WHERE s.creator_user_id = ${userId} AND s.deleted_at IS NULL
         AND s.id = ${storyId}::UUID
