@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { type RefObject, useEffect, useState } from 'react'
 import { ShareButtons } from '@/components/common/share-buttons'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -199,24 +198,24 @@ export function ChapterReaderHeader({
 
                 <section>
                   <p className="mb-2 text-sm font-bold">เลือกเสียงบรรยาย</p>
-                  <Select
-                    value={selectedVoiceSlot ?? undefined}
-                    onValueChange={(value) => onVoiceSlotChange(value as TtsVoiceSlot)}
-                  >
-                    <SelectTrigger className="h-auto w-full rounded-2xl border-primary/30 bg-primary/10 px-4 py-3 text-left">
-                      <span className="min-w-0">
-                        <span className="block font-bold text-primary"><SelectValue placeholder="เลือกเสียงบรรยาย" /></span>
-                        <span className="mt-0.5 block text-xs text-muted-foreground">เลือกเวอร์ชันเสียงสำหรับตอนนี้</span>
-                      </span>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {audioVersions.map((audio) => (
-                        <SelectItem key={audio.voice_slot} value={audio.voice_slot}>
+                  <div className="grid grid-cols-3 rounded-xl border bg-muted/40 p-1" role="group" aria-label="เลือกเสียงบรรยาย">
+                    {audioVersions.map((audio) => {
+                      const selected = selectedVoiceSlot === audio.voice_slot
+                      return (
+                        <Button
+                          key={audio.voice_slot}
+                          type="button"
+                          variant={selected ? 'default' : 'ghost'}
+                          size="sm"
+                          aria-pressed={selected}
+                          onClick={() => onVoiceSlotChange(audio.voice_slot)}
+                          className={`h-9 rounded-lg px-2 text-xs font-bold ${selected ? 'shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
                           {TTS_VOICE_LABELS[audio.voice_slot]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        </Button>
+                      )
+                    })}
+                  </div>
                 </section>
 
                 <section className="rounded-[1.5rem] border bg-muted/30 p-4">
