@@ -158,7 +158,6 @@ class ChaptersTableModel(QAbstractTableModel):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.chapters: list[dict] = []
-        self.selected_voices: dict[str, str] = {}
 
     def replace(self, chapters: list[dict]) -> None:
         self.beginResetModel()
@@ -176,52 +175,6 @@ class ChaptersTableModel(QAbstractTableModel):
                 return row
         return None
 
-    @staticmethod
-    def saved_voice_for(chapter: dict) -> str:
-        saved_voice = chapter.get("latest_voice_slot")
-        if saved_voice not in VOICE_LABELS:
-            saved_voice = VOICE_SLOT["FEMALE"]
-        return saved_voice
-
-    def voice_for(self, chapter: dict) -> str:
-        saved_voice = self.saved_voice_for(chapter)
-        if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
-            return saved_voice
-        return self.selected_voices.get(chapter["chapter_id"], saved_voice)
-
-    def has_voice_change(self, chapter: dict) -> bool:
-        """Return whether a completed chapter has a newly selected voice."""
-        if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
-            return False
-        selected_voice = self.selected_voices.get(chapter["chapter_id"])
-        return selected_voice is not None and selected_voice != self.saved_voice_for(chapter)
-
-    def flags(self, index: QModelIndex):
-        flags = super().flags(index)
-        if index.isValid() and index.column() == TABLE_COLUMN["VOICE"]:
-            chapter = self.chapter_at(index.row())
-            if chapter.get("latest_job_status") not in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
-                flags |= Qt.ItemFlag.ItemIsEditable
-        return flags
-
-    def setData(self, index: QModelIndex, value, role: int = Qt.ItemDataRole.EditRole) -> bool:
-        if (not index.isValid() or index.column() != TABLE_COLUMN["VOICE"]
-                or role != Qt.ItemDataRole.EditRole or value not in VOICE_LABELS
-                or not (self.flags(index) & Qt.ItemFlag.ItemIsEditable)):
-            return False
-        chapter = self.chapter_at(index.row())
-        chapter_id = chapter["chapter_id"]
-        if value == self.saved_voice_for(chapter):
-            self.selected_voices.pop(chapter_id, None)
-        else:
-            self.selected_voices[chapter_id] = value
-        self.dataChanged.emit(
-            index,
-            self.index(index.row(), TABLE_COLUMN["ACTION"]),
-            [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole],
-        )
-        return True
-
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         return 0 if parent.isValid() else len(self.chapters)
 
@@ -238,10 +191,8 @@ class ChaptersTableModel(QAbstractTableModel):
             return None
         chapter = self.chapters[index.row()]
         if index.column() == TABLE_COLUMN["VOICE"]:
-            if role == Qt.ItemDataRole.EditRole:
-                return self.voice_for(chapter)
             if role == Qt.ItemDataRole.ToolTipRole:
-                return "ยกเลิกงานเดิมก่อนเปลี่ยนเสียง" if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]) else "เลือกเสียงสำหรับตอนนี้ก่อนเข้าคิว"
+                return "กดปุ่มเลือกเสียงเพื่อเลือกได้หลายเสียงและเข้าคิวพร้อมกัน"
         if role == Qt.ItemDataRole.TextAlignmentRole and index.column() in (TABLE_COLUMN["WORDS"], TABLE_COLUMN["VOICE"]):
             return Qt.AlignmentFlag.AlignCenter
         if role != Qt.ItemDataRole.DisplayRole:
@@ -250,7 +201,7 @@ class ChaptersTableModel(QAbstractTableModel):
             chapter["story_title"],
             f"{chapter['chapter_number']}: {chapter['chapter_title']}",
             str(chapter["word_count"]),
-            VOICE_LABELS[self.voice_for(chapter)],
+            "เลือกได้หลายเสียง",
             "",
             "",
         )
@@ -259,51 +210,6 @@ class ChaptersTableModel(QAbstractTableModel):
 
 class ChapterTableDelegate(TableItemDelegate):
     action_clicked = Signal(str)
-
-    def initStyleOption(self, option: QStyleOptionViewItem, index: QModelIndex) -> None:
-        super().initStyleOption(option, index)
-        if index.column() == TABLE_COLUMN["VOICE"] and self.parent().isPersistentEditorOpen(index):
-            # QStyledItemDelegate rebuilds the text from DisplayRole during
-            # paint, so suppress it here, underneath the translucent ComboBox.
-            # Keep the model's label and the normal row background intact.
-            option.text = ""
-
-    def createEditor(self, parent, option, index):
-        if index.column() != TABLE_COLUMN["VOICE"]:
-            return super().createEditor(parent, option, index)
-        editor = ComboBox(parent)
-        setCustomStyleSheet(editor, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
-        editor.setMinimumWidth(0)
-        editor.setFixedHeight(32)
-        for value, label in VOICE_LABELS.items():
-            editor.addItem(label, userData=value)
-        editor.currentIndexChanged.connect(lambda _index: self.commitData.emit(editor))
-        return editor
-
-    def setEditorData(self, editor, index) -> None:
-        if index.column() != TABLE_COLUMN["VOICE"]:
-            super().setEditorData(editor, index)
-            return
-        editor.blockSignals(True)
-        editor.setCurrentIndex(editor.findData(index.data(Qt.ItemDataRole.EditRole)))
-        editor.blockSignals(False)
-
-    def setModelData(self, editor, model, index) -> None:
-        if index.column() == TABLE_COLUMN["VOICE"]:
-            model.setData(index, editor.currentData(), Qt.ItemDataRole.EditRole)
-        else:
-            super().setModelData(editor, model, index)
-
-    def updateEditorGeometry(self, editor, option, index) -> None:
-        if index.column() != TABLE_COLUMN["VOICE"]:
-            super().updateEditorGeometry(editor, option, index)
-            return
-        rect = option.rect.adjusted(6, 0, -6, 0)
-        rect.setWidth(max(0, rect.width()))
-        rect.setHeight(32)
-        rect.moveTop(option.rect.top() + (option.rect.height() - 32) // 2)
-        editor.setMaximumWidth(rect.width())
-        editor.setGeometry(rect)
 
     @staticmethod
     def _content_rect(rect):
@@ -326,12 +232,7 @@ class ChapterTableDelegate(TableItemDelegate):
                 label = f"{label} {chapter['latest_progress']}%"
             self._paint_pill(painter, self._content_rect(option.rect), label, background, color)
             return
-        job_status = chapter.get("latest_job_status")
-        if job_status not in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
-            if job_status == TTS_JOB_STATUS["DONE"] and not model.has_voice_change(chapter):
-                return
-            label = "สร้างใหม่" if job_status == TTS_JOB_STATUS["DONE"] else "เข้าคิว"
-            self._paint_pill(painter, self._content_rect(option.rect), label, WEB_COLORS["primary"], WEB_COLORS["primary_foreground"])
+        self._paint_pill(painter, self._content_rect(option.rect), "เลือกเสียง", WEB_COLORS["primary"], WEB_COLORS["primary_foreground"])
 
     @staticmethod
     def _paint_pill(painter: QPainter, rect, text: str, background: str, color: str) -> None:
@@ -347,15 +248,9 @@ class ChapterTableDelegate(TableItemDelegate):
     def editorEvent(self, event, model, option: QStyleOptionViewItem, index: QModelIndex) -> bool:
         if index.column() != TABLE_COLUMN["ACTION"] or not isinstance(model, ChaptersTableModel):
             return super().editorEvent(event, model, option, index)
-        chapter = model.chapter_at(index.row())
-        if chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
-            return False
-        if (chapter.get("latest_job_status") == TTS_JOB_STATUS["DONE"]
-                and not model.has_voice_change(chapter)):
-            return False
         if event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             if self._content_rect(option.rect).contains(event.position().toPoint()):
-                self.action_clicked.emit(chapter["chapter_id"])
+                self.action_clicked.emit(model.chapter_at(index.row())["chapter_id"])
                 return True
         return super().editorEvent(event, model, option, index)
 
@@ -1341,23 +1236,80 @@ class CancelAllJobsThread(QThread):
             self.error_message = str(error)
 
 
+class VoiceQueueDialog(QDialog):
+    """Choose every narrator version before placing one chapter in the queue."""
+
+    def __init__(self, chapter: dict, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("เลือกเสียงบรรยาย")
+        self.setModal(True)
+        self.setFixedWidth(420)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet("""
+            VoiceQueueDialog {{ background: {card}; }}
+            QLabel {{ color: {foreground}; background: transparent; }}
+            CheckBox {{ color: {foreground}; padding: 8px 0; }}
+        """.format_map(WEB_COLORS))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(10)
+        layout.addWidget(SubtitleLabel("เลือกเสียงบรรยาย", self))
+        layout.addWidget(BodyLabel(
+            f"ตอน {chapter['chapter_number']}: {chapter['chapter_title']}\n"
+            "เลือกได้หลายเสียง ระบบจะเข้าคิวทั้งหมดและสร้างต่อเนื่องอัตโนมัติ",
+            self,
+        ))
+
+        self.voice_checks: dict[str, CheckBox] = {}
+        for voice, label in VOICE_LABELS.items():
+            check = CheckBox(label, self)
+            check.setChecked(True)
+            self.voice_checks[voice] = check
+            layout.addWidget(check)
+
+        layout.addSpacing(6)
+        actions = QHBoxLayout()
+        actions.addStretch(1)
+        cancel = PushButton("ยกเลิก", self)
+        confirm = PrimaryPushButton("เข้าคิวเสียงที่เลือก", self)
+        cancel.clicked.connect(self.reject)
+        confirm.clicked.connect(self._confirm)
+        actions.addWidget(cancel)
+        actions.addWidget(confirm)
+        layout.addLayout(actions)
+        setCustomStyleSheet(cancel, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+        setCustomStyleSheet(confirm, WEB_CONTROL_STYLE, WEB_CONTROL_STYLE)
+
+    def selected_voices(self) -> list[str]:
+        return [voice for voice, check in self.voice_checks.items() if check.isChecked()]
+
+    def _confirm(self) -> None:
+        if not self.selected_voices():
+            InfoBar.warning("ยังไม่ได้เลือกเสียง", "เลือกอย่างน้อย 1 เสียงก่อนเข้าคิว", parent=self, position=InfoBarPosition.TOP)
+            return
+        self.accept()
+
+
 class QueueJobThread(QThread):
-    def __init__(self, client: ApiClient, chapter: dict, voice: str, parent: QWidget) -> None:
+    def __init__(self, client: ApiClient, chapter: dict, voices: list[str], parent: QWidget) -> None:
         super().__init__(parent)
         self.client = client
         self.chapter_id = chapter["chapter_id"]
-        self.voice = voice
+        self.voices = voices
         self.previous = {key: chapter.get(key) for key in (
             "latest_job_status", "latest_job_id", "latest_voice_slot", "latest_progress",
         )}
-        self.result: dict | None = None
+        self.results: list[dict] = []
         self.error_message: str | None = None
 
     def run(self) -> None:
-        try:
-            self.result = self.client.queue_job(self.chapter_id, self.voice)
-        except Exception as error:
-            self.error_message = str(error)
+        for voice in self.voices:
+            try:
+                self.results.append(self.client.queue_job(self.chapter_id, voice))
+            except Exception as error:
+                self.error_message = str(error)
+                return
 
 
 class JobsPage(QWidget):
@@ -1508,7 +1460,7 @@ class JobsPage(QWidget):
 
     def _resize_table_columns(self) -> None:
         available = max(self.table.viewport().width(), 1)
-        proportions = (0.22, 0.25, 0.08, 0.16, 0.14, 0.15)
+        proportions = (0.22, 0.25, 0.08, 0.19, 0.13, 0.13)
         widths = [int(available * proportion) for proportion in proportions]
         widths[-1] += available - sum(widths)
         for column, width in enumerate(widths):
@@ -1589,7 +1541,6 @@ class JobsPage(QWidget):
         InfoBar.error("โหลด VoxCPM2 ไม่สำเร็จ", message, parent=self, position=InfoBarPosition.TOP)
     def set_client(self, client: ApiClient, name: str) -> None:
         self.client = client
-        self.chapters_model.selected_voices.clear()
         self.title.setText("ตอนที่ยังไม่มีเสียง")
         self.story_filter.blockSignals(True)
         self.story_filter.clear()
@@ -1696,14 +1647,10 @@ class JobsPage(QWidget):
                 pending = self.queue_threads.get(item["chapter_id"])
                 if pending and item.get("latest_job_id") == pending.previous["latest_job_id"]:
                     item.update({"latest_job_status": TTS_JOB_STATUS["QUEUED"],
-                                 "latest_voice_slot": pending.voice, "latest_progress": 0, "_queue_pending": True})
+                                 "latest_voice_slot": pending.voices[0], "latest_progress": 0, "_queue_pending": True})
             self.chapters_model.replace(result["items"])
             self._update_pagination(result["pagination"]["total"])
             self._resize_table_columns()
-            for row in range(self.chapters_model.rowCount()):
-                index = self.chapters_model.index(row, TABLE_COLUMN["VOICE"])
-                if self.chapters_model.flags(index) & Qt.ItemFlag.ItemIsEditable:
-                    self.table.openPersistentEditor(index)
             QTimer.singleShot(0, self._resize_table_columns)
             self.table.viewport().update()
         except ApiUnauthorizedError:
@@ -1716,16 +1663,16 @@ class JobsPage(QWidget):
     def queue(self, chapter_id: str) -> None:
         if not self.client or self.cancelling_all or self.shutdown_requested or self.logout_thread is not None or chapter_id in self.queue_threads: return
         chapter = next((item for item in self.chapters_model.chapters if item["chapter_id"] == chapter_id), None)
-        if chapter is None or chapter.get("latest_job_status") in (TTS_JOB_STATUS["QUEUED"], TTS_JOB_STATUS["PROCESSING"]):
+        if chapter is None:
             return
-        voice = self.chapters_model.voice_for(chapter)
-        thread = QueueJobThread(self.client, chapter, voice, self)
+        dialog = VoiceQueueDialog(chapter, self.window())
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        voices = dialog.selected_voices()
+        thread = QueueJobThread(self.client, chapter, voices, self)
         self.queue_threads[chapter_id] = thread
-        self.chapters_model.selected_voices[chapter_id] = voice
-        row = next(row for row, item in enumerate(self.chapters_model.chapters) if item["chapter_id"] == chapter_id)
-        self.table.closePersistentEditor(self.chapters_model.index(row, TABLE_COLUMN["VOICE"]))
         self.chapters_model.update_chapter(chapter_id, {
-            "latest_job_status": TTS_JOB_STATUS["QUEUED"], "latest_voice_slot": voice,
+            "latest_job_status": TTS_JOB_STATUS["QUEUED"], "latest_voice_slot": voices[0],
             "latest_progress": 0, "_queue_pending": True,
         })
         thread.finished.connect(self._queue_job_finished)
@@ -1738,29 +1685,35 @@ class JobsPage(QWidget):
         chapter_id = thread.chapter_id
         self.queue_threads.pop(chapter_id, None)
         chapter = next((item for item in self.chapters_model.chapters if item["chapter_id"] == chapter_id), None)
-        if thread.error_message:
+        if thread.error_message and not thread.results:
             self._cancel_pending_start()
             if chapter and chapter.get("_queue_pending"):
                 row = self.chapters_model.update_chapter(chapter_id, {**thread.previous, "_queue_pending": False})
-                if row is not None:
-                    self.table.openPersistentEditor(self.chapters_model.index(row, TABLE_COLUMN["VOICE"]))
             if not self.shutdown_requested:
                 InfoBar.error("เพิ่มงานไม่สำเร็จ", f"คืนสถานะแถวแล้ว: {thread.error_message}", parent=self, position=InfoBarPosition.TOP)
-        elif thread.result is not None:
+        elif thread.results:
             # A refresh may already show a more recent processing/done state.
             if chapter and chapter.get("_queue_pending"):
+                latest = thread.results[-1]
                 self.chapters_model.update_chapter(chapter_id, {
-                    "latest_job_status": thread.result["status"], "latest_job_id": thread.result["id"],
-                    "latest_voice_slot": thread.result["voice_slot"], "_queue_pending": False,
+                    "latest_job_status": latest["status"], "latest_job_id": latest["id"],
+                    "latest_voice_slot": latest["voice_slot"], "_queue_pending": False,
                 })
-            self.chapters_model.selected_voices.pop(chapter_id, None)
             if not self.shutdown_requested and not self.cancelling_all:
-                InfoBar.success("เพิ่มเข้าคิวแล้ว", f"เสียง{VOICE_LABELS[thread.voice]}", parent=self, position=InfoBarPosition.TOP)
+                voice_names = ", ".join(VOICE_LABELS[voice] for voice in thread.voices[:len(thread.results)])
+                title = "เข้าคิวบางเสียงแล้ว" if thread.error_message else "เพิ่มเข้าคิวแล้ว"
+                message = f"{voice_names}"
+                if thread.error_message:
+                    message = f"{message}\nเสียงที่เหลือเพิ่มไม่สำเร็จ: {thread.error_message}"
+                (InfoBar.warning if thread.error_message else InfoBar.success)(title, message, parent=self, position=InfoBarPosition.TOP)
         thread.deleteLater()
         if self.cancelling_all and not self.queue_threads and self.cancel_all_thread is None:
             self._start_cancel_all_request()
         elif not self.queue_threads:
-            self._continue_start()
+            if thread.results:
+                self.render_next()
+            else:
+                self._continue_start()
     def render_next(self) -> None:
         if self.shutdown_requested or self.cancelling_all or self.logout_thread is not None or not self.client or self.thread is not None: return
         self.start_requested = True
@@ -1845,7 +1798,6 @@ class JobsPage(QWidget):
         # Update the existing row on the UI thread without resetting the table.
         for row, chapter in enumerate(self.chapters_model.chapters):
             if chapter["chapter_id"] == chapter_id:
-                self.table.closePersistentEditor(self.chapters_model.index(row, TABLE_COLUMN["VOICE"]))
                 self.chapters_model.update_chapter(chapter_id, {
                     "latest_job_id": job_id,
                     "latest_job_status": TTS_JOB_STATUS["PROCESSING"],
