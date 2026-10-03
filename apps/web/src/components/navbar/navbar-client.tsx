@@ -149,7 +149,7 @@ function ContentDisplayPopover({
           type="button"
           aria-label="ปรับการแสดงผลเนื้อหา"
           title="ปรับการแสดงผลเนื้อหา"
-          className="readji-icon-button text-[#7c2837] hover:text-[#a0354b]"
+          className="readji-icon-button"
         >
           <Heart className="size-5" />
         </button>
