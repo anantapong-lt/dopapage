@@ -1,4 +1,5 @@
 import { Suspense } from 'react'
+import { cookies } from 'next/headers'
 import { AllTimePopularSection } from '@/components/home/all-time-popular-section'
 import { LatestUpdatesSection } from '@/components/home/latest-updates-section'
 import { PopularSection } from '@/components/home/popular-section'
@@ -16,7 +17,9 @@ export const dynamic = 'force-dynamic'
 const PAGE_SIZE = 12
 
 async function DeferredPopularSection() {
-  const data = await getLandingStories('popular', 1, PAGE_SIZE)
+  const data = await getLandingStories('popular', 1, PAGE_SIZE, undefined, undefined, undefined, undefined, {
+    cookieHeader: (await cookies()).toString(),
+  })
 
   return <PopularSection data={data} renderedAt={Date.now()} />
 }
@@ -63,7 +66,9 @@ async function DeferredRisingAuthorsSection() {
 
 export default async function HomePage() {
   // Keep the LCP covers in the initial HTML, outside streamed placeholders.
-  const latest = await getLandingStories('latest', 1, PAGE_SIZE)
+  const latest = await getLandingStories('latest', 1, PAGE_SIZE, undefined, undefined, undefined, undefined, {
+    cookieHeader: (await cookies()).toString(),
+  })
   const renderedAt = Date.now()
 
   return (

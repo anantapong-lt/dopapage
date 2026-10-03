@@ -9,6 +9,7 @@ import type {
   LandingStory,
 } from '@/interface/landing.interface'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
+import { useAuth } from '@/components/auth/auth-provider'
 
 function formatUpdatedAt(value: string, renderedAt: number) {
   const elapsedSeconds = Math.max(
@@ -64,6 +65,7 @@ export function StoryResultsGrid({
   contentType?: import('@/constants/story.constant').StoryType
   mobileInfiniteScroll?: boolean
 }) {
+  const { accessToken } = useAuth()
   const [stories, setStories] = useState(initialData.stories)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(initialData.pagination.hasNextPage)
@@ -123,6 +125,7 @@ export function StoryResultsGrid({
         categories,
         search,
         contentType,
+        { accessToken },
       )
       if (requestVersion !== requestVersionRef.current) return
 
@@ -167,7 +170,7 @@ export function StoryResultsGrid({
         setIsLoadingMore(inFlightPagesRef.current.size > 0)
       }
     }
-  }, [categories, contentType, getReservedSkeletonCount, initialData.pagination.limit, initialData.section, search])
+  }, [accessToken, categories, contentType, getReservedSkeletonCount, initialData.pagination.limit, initialData.section, search])
 
   const gridStories = useMemo(
     () => stories.map((story) => toStoryGridItem(story, initialData.section, renderedAt)),

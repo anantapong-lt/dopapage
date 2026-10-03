@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Bell,
   ChevronDown,
   HistoryIcon,
+  Heart,
   Home,
   LayoutDashboard,
   LibraryBig,
@@ -25,6 +26,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/components/auth/auth-provider'
 import { getBankConfigs, getWriterApplicationStatus } from '@/controllers/writer.controller'
 import { getMyProfile } from '@/controllers/profile.controller'
+import { getReadingSettings, updateReadingSettings } from '@/controllers/reading-settings.controller'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -39,6 +41,8 @@ import { SITE_CONFIG } from '@/site.config'
 import type { UserNotification } from '@/interface/notification.interface'
 import type { BankConfig } from '@/interface/writer-bank-account.interface'
 import type { PublicFeatureConfig } from '@/lib/server-auth'
+import { DEFAULT_READING_SETTINGS, type ContentDisplayMode, type ReadingSettings } from '@/lib/reading-settings'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const loadWriterApplicationDialog = () => import('./writer-application-dialog')
 const WriterApplicationDialog = dynamic(
@@ -80,6 +84,106 @@ function DisabledIconButton({ label, children }: { label: string; children: Reac
     >
       {children}
     </button>
+  )
+}
+
+const CONTENT_FILTER_ROWS: Array<{ key: keyof ReadingSettings['contentFilters']; label: string; selectedClass: string; labelClass: string }> = [
+  { key: 'age18', label: '18+', selectedClass: 'bg-pink-500 text-white', labelClass: 'text-pink-600' },
+  { key: 'bl', label: 'BL', selectedClass: 'bg-sky-500 text-white', labelClass: 'text-sky-600' },
+  { key: 'gl', label: 'GL', selectedClass: 'bg-violet-500 text-white', labelClass: 'text-violet-600' },
+]
+
+const CONTENT_FILTER_OPTIONS: Array<{ value: ContentDisplayMode; label: string }> = [
+  { value: 'hide', label: 'ซ่อน' },
+  { value: 'both', label: 'ทั้งคู่' },
+  { value: 'only', label: 'เฉพาะ' },
+]
+
+function ContentDisplayPopover({
+  accessToken,
+  settings,
+  disabled,
+  onChange,
+}: {
+  accessToken: string | null
+  settings: ReadingSettings
+  disabled: boolean
+  onChange: (settings: ReadingSettings) => void
+}) {
+  const router = useRouter()
+  const [saving, setSaving] = useState(false)
+
+  async function updateFilter(key: keyof ReadingSettings['contentFilters'], value: ContentDisplayMode) {
+    if (!accessToken || saving || settings.contentFilters[key] === value) return
+
+    const nextSettings: ReadingSettings = {
+      ...settings,
+      contentFilters: { ...settings.contentFilters, [key]: value },
+    }
+    onChange(nextSettings)
+    setSaving(true)
+    try {
+      const result = await updateReadingSettings(nextSettings, accessToken)
+      onChange(result.reading_settings)
+      router.refresh()
+    } catch {
+      onChange(settings)
+      toast.error('บันทึกการแสดงผลเนื้อหาไม่สำเร็จ กรุณาลองใหม่อีกครั้ง')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (disabled) {
+    return (
+      <DisabledIconButton label="ตัวกรองเนื้อหา">
+        <Heart className="size-5" />
+      </DisabledIconButton>
+    )
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label="ปรับการแสดงผลเนื้อหา"
+          title="ปรับการแสดงผลเนื้อหา"
+          className="readji-icon-button text-[#7c2837] hover:text-[#a0354b]"
+        >
+          <Heart className="size-5 fill-current" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" sideOffset={12} className="w-[18rem] rounded-[1.5rem] border-border/60 bg-card/95 p-4 shadow-xl backdrop-blur-xl">
+        <div>
+          <h2 className="text-sm font-bold text-foreground">การแสดงผลเนื้อหา</h2>
+          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">เลือกเนื้อหาที่ต้องการให้แสดงในหน้าแรกและหน้าค้นหา</p>
+        </div>
+        <div className="space-y-2.5">
+          {CONTENT_FILTER_ROWS.map(({ key, label, selectedClass, labelClass }) => (
+            <div key={key} className="grid grid-cols-[2rem_minmax(0,1fr)] items-center gap-2">
+              <span className={`text-sm font-bold ${labelClass}`}>{label}</span>
+              <div className="grid grid-cols-3 rounded-full bg-muted/75 p-0.5 text-xs font-semibold">
+                {CONTENT_FILTER_OPTIONS.map((option) => {
+                  const selected = settings.contentFilters[key] === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void updateFilter(key, option.value)}
+                      className={`rounded-full px-2 py-1.5 transition-colors disabled:cursor-wait ${selected ? selectedClass : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -261,6 +365,7 @@ export function NavbarClient({
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(initialUnreadNotificationCount)
   const [selectedNotification, setSelectedNotification] = useState<UserNotification | null>(null)
   const [hasHydrated, setHasHydrated] = useState(false)
+  const [readingSettings, setReadingSettings] = useState<ReadingSettings>(DEFAULT_READING_SETTINGS)
   const pathname = usePathname()
   const { accessToken, logout, status, user: clientUser } = useAuth()
   const user = !hasHydrated || status === 'loading' ? initialUser : clientUser
@@ -269,6 +374,23 @@ export function NavbarClient({
   useEffect(() => {
     setHasHydrated(true)
   }, [])
+
+  useEffect(() => {
+    if (!accessToken) {
+      setReadingSettings(DEFAULT_READING_SETTINGS)
+      return
+    }
+
+    let active = true
+    void getReadingSettings(accessToken)
+      .then((result) => {
+        if (active) setReadingSettings(result.reading_settings)
+      })
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [accessToken])
 
   useEffect(() => {
     if (!isReaderPage) {
@@ -373,6 +495,12 @@ export function NavbarClient({
                   <Bell className="size-5" />
                 </DisabledIconButton>
               )}
+              <ContentDisplayPopover
+                accessToken={accessToken}
+                settings={readingSettings}
+                disabled={!user || !accessToken}
+                onChange={setReadingSettings}
+              />
               <div className="ml-1 flex min-w-[150px] shrink-0 items-center justify-end gap-2">
                 {(!hasHydrated || status === 'loading') && !user ? (
                   <div className="h-10 w-32 animate-pulse rounded-full bg-muted" aria-label="กำลังตรวจสอบสถานะผู้ใช้" />
@@ -412,6 +540,12 @@ export function NavbarClient({
                   <Bell className="size-5" />
                 </DisabledIconButton>
               )}
+              <ContentDisplayPopover
+                accessToken={accessToken}
+                settings={readingSettings}
+                disabled={!user || !accessToken}
+                onChange={setReadingSettings}
+              />
               {user ? (
                 <UserDropdownMenu
                   compact

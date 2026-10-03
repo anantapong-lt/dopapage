@@ -1,5 +1,5 @@
 import type { ContentType, LandingSection } from './landing.schema'
-import { getLandingStories } from './landing.service'
+import { getContentDisplayFilters, getLandingStories } from './landing.service'
 
 interface GetLandingInput {
   section: LandingSection
@@ -10,8 +10,9 @@ interface GetLandingInput {
   type?: ContentType
 }
 
-export async function getLanding(input: GetLandingInput) {
+export async function getLanding(input: GetLandingInput, userId: string | null) {
   try {
+    const contentFilters = await getContentDisplayFilters(userId)
     return await getLandingStories(
       input.section,
       input.page ?? 1,
@@ -22,6 +23,7 @@ export async function getLanding(input: GetLandingInput) {
         .filter(Boolean) ?? [],
       input.search?.trim() ?? '',
       input.type ?? null,
+      contentFilters,
     )
   } catch (error) {
     console.error('Unable to load landing stories', error)

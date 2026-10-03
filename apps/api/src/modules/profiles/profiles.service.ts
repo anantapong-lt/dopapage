@@ -19,6 +19,23 @@ export interface ReadingSettings {
   theme: 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
   autoNext: boolean
   autoPurchase: boolean
+  contentFilters: {
+    age18: ContentDisplayMode
+    bl: ContentDisplayMode
+    gl: ContentDisplayMode
+  }
+}
+
+type ContentDisplayMode = 'hide' | 'both' | 'only'
+
+const DEFAULT_CONTENT_FILTERS: ReadingSettings['contentFilters'] = {
+  age18: 'both',
+  bl: 'both',
+  gl: 'both',
+}
+
+function contentDisplayMode(value: unknown): ContentDisplayMode | undefined {
+  return value === 'hide' || value === 'both' || value === 'only' ? value : undefined
 }
 
 function parseReadingSettings(value: unknown): ReadingSettings | undefined {
@@ -32,15 +49,32 @@ function parseReadingSettings(value: unknown): ReadingSettings | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
 
   const settings = value as Partial<ReadingSettings>
+  const { fontSize, fontFamily, theme, autoNext, autoPurchase } = settings
   if (
-    typeof settings.fontSize !== 'number'
-    || typeof settings.fontFamily !== 'string'
-    || typeof settings.theme !== 'string'
-    || typeof settings.autoNext !== 'boolean'
-    || typeof settings.autoPurchase !== 'boolean'
+    typeof fontSize !== 'number'
+    || typeof fontFamily !== 'string'
+    || typeof theme !== 'string'
+    || typeof autoNext !== 'boolean'
+    || typeof autoPurchase !== 'boolean'
   ) return undefined
 
-  return settings as ReadingSettings
+  const filters = settings.contentFilters
+  const contentFilters = filters && typeof filters === 'object' && !Array.isArray(filters)
+    ? {
+        age18: contentDisplayMode((filters as Partial<ReadingSettings['contentFilters']>).age18) ?? DEFAULT_CONTENT_FILTERS.age18,
+        bl: contentDisplayMode((filters as Partial<ReadingSettings['contentFilters']>).bl) ?? DEFAULT_CONTENT_FILTERS.bl,
+        gl: contentDisplayMode((filters as Partial<ReadingSettings['contentFilters']>).gl) ?? DEFAULT_CONTENT_FILTERS.gl,
+      }
+    : DEFAULT_CONTENT_FILTERS
+
+  return {
+    fontSize,
+    fontFamily,
+    theme,
+    autoNext,
+    autoPurchase,
+    contentFilters,
+  }
 }
 
 export interface ProfileStory {
@@ -409,7 +443,12 @@ export async function updateReadingSettings(
       'fontFamily', ${settings.fontFamily}::TEXT,
       'theme', ${settings.theme}::TEXT,
       'autoNext', ${settings.autoNext}::BOOLEAN,
-      'autoPurchase', ${settings.autoPurchase}::BOOLEAN
+      'autoPurchase', ${settings.autoPurchase}::BOOLEAN,
+      'contentFilters', jsonb_build_object(
+        'age18', ${settings.contentFilters.age18}::TEXT,
+        'bl', ${settings.contentFilters.bl}::TEXT,
+        'gl', ${settings.contentFilters.gl}::TEXT
+      )
     ), updated_at = NOW()
     WHERE id = ${userId} AND deleted_at IS NULL
     RETURNING reading_settings

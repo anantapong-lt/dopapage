@@ -6,6 +6,7 @@ import { getLandingStories } from '@/controllers/landing.controller'
 import { StoryType } from '@/constants/story.constant'
 import type { LandingSection } from '@/interface/landing.interface'
 import { SearchIcon, SearchXIcon } from 'lucide-react'
+import { cookies } from 'next/headers'
 
 // Search results come from the API service, which is unavailable while the
 // web image itself is being built.
@@ -26,7 +27,9 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const section: LandingSection = sortParam === 'latest' || sortParam === 'weekly' || sortParam === 'all-time' || sortParam === 'most-followed'
     ? sortParam
     : 'random'
-  const data = await getLandingStories(section, 1, 12, undefined, categories, search, contentType)
+  const data = await getLandingStories(section, 1, 12, undefined, categories, search, contentType, {
+    cookieHeader: (await cookies()).toString(),
+  })
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-8 md:px-8">

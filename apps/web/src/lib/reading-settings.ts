@@ -1,5 +1,12 @@
 export type ReadingTheme = 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
 export type ReadingFont = 'sans' | 'serif' | 'arial' | 'cordia-new' | 'tf-nopscript' | 'sarabun' | 'noto-serif-thai' | 'prompt' | 'layiji-mahaniyom'
+export type ContentDisplayMode = 'hide' | 'both' | 'only'
+
+export interface ContentDisplaySettings {
+  age18: ContentDisplayMode
+  bl: ContentDisplayMode
+  gl: ContentDisplayMode
+}
 
 export interface ReadingSettings {
   fontSize: number
@@ -7,6 +14,7 @@ export interface ReadingSettings {
   theme: ReadingTheme
   autoNext: boolean
   autoPurchase: boolean
+  contentFilters: ContentDisplaySettings
 }
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
@@ -15,6 +23,11 @@ export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   theme: 'light',
   autoNext: true,
   autoPurchase: false,
+  contentFilters: {
+    age18: 'both',
+    bl: 'both',
+    gl: 'both',
+  },
 }
 
 export const READING_THEMES: Record<ReadingTheme, { label: string; background: string; text: string }> = {

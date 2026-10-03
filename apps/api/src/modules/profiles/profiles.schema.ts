@@ -34,6 +34,12 @@ export const updateMyProfileBodySchema = t.Object({
   social_links: t.Optional(profileSocialLinksSchema),
 })
 
+const contentDisplayModeSchema = t.Union([
+  t.Literal('hide'),
+  t.Literal('both'),
+  t.Literal('only'),
+])
+
 export const readingSettingsSchema = t.Object({
   fontSize: t.Numeric({ minimum: 16, maximum: 32, multipleOf: 1 }),
   fontFamily: t.Union([
@@ -56,6 +62,11 @@ export const readingSettingsSchema = t.Object({
   ]),
   autoNext: t.Boolean(),
   autoPurchase: t.Boolean(),
+  contentFilters: t.Object({
+    age18: contentDisplayModeSchema,
+    bl: contentDisplayModeSchema,
+    gl: contentDisplayModeSchema,
+  }),
 })
 
 export const updateMyProfileCoverBodySchema = t.Object({

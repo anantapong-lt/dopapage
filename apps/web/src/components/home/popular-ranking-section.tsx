@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { getLandingStories } from '@/controllers/landing.controller'
 import type { LandingSection, LandingStory } from '@/interface/landing.interface'
+import { useAuth } from '@/components/auth/auth-provider'
 
 interface PopularRankingSectionProps {
   section: Extract<LandingSection, 'weekly' | 'all-time'>
@@ -23,6 +24,7 @@ export function PopularRankingSection({
   heading,
   description,
 }: PopularRankingSectionProps) {
+  const { accessToken } = useAuth()
   const [stories, setStories] = useState<LandingStory[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
@@ -48,7 +50,7 @@ export function PopularRankingSection({
       setHasError(false)
 
       try {
-        const data = await getLandingStories(section, 1, 5, abortController.signal)
+        const data = await getLandingStories(section, 1, 5, abortController.signal, undefined, undefined, undefined, { accessToken })
         setStories(data.stories)
       } catch {
         if (!abortController.signal.aborted) setHasError(true)
@@ -59,7 +61,7 @@ export function PopularRankingSection({
 
     void loadRanking()
     return () => abortController.abort()
-  }, [isDesktop, section])
+  }, [accessToken, isDesktop, section])
 
   return (
     <aside aria-labelledby={headingId} className="w-full">

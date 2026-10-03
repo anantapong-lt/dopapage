@@ -33,6 +33,46 @@ interface LandingStoryCount {
   total: string
 }
 
+type ContentDisplayMode = 'hide' | 'both' | 'only'
+
+export interface ContentDisplayFilters {
+  age18: ContentDisplayMode
+  bl: ContentDisplayMode
+  gl: ContentDisplayMode
+}
+
+export const DEFAULT_CONTENT_DISPLAY_FILTERS: ContentDisplayFilters = {
+  age18: 'both',
+  bl: 'both',
+  gl: 'both',
+}
+
+function asContentDisplayMode(value: unknown): ContentDisplayMode | undefined {
+  return value === 'hide' || value === 'both' || value === 'only' ? value : undefined
+}
+
+export async function getContentDisplayFilters(userId: string | null): Promise<ContentDisplayFilters> {
+  if (!userId) return DEFAULT_CONTENT_DISPLAY_FILTERS
+
+  const [user] = await db<Array<{ reading_settings: unknown }>>`
+    SELECT reading_settings
+    FROM users
+    WHERE id = ${userId} AND deleted_at IS NULL
+    LIMIT 1
+  `
+  const settings = user?.reading_settings
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return DEFAULT_CONTENT_DISPLAY_FILTERS
+
+  const filters = (settings as { contentFilters?: unknown }).contentFilters
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return DEFAULT_CONTENT_DISPLAY_FILTERS
+
+  return {
+    age18: asContentDisplayMode((filters as Partial<ContentDisplayFilters>).age18) ?? DEFAULT_CONTENT_DISPLAY_FILTERS.age18,
+    bl: asContentDisplayMode((filters as Partial<ContentDisplayFilters>).bl) ?? DEFAULT_CONTENT_DISPLAY_FILTERS.bl,
+    gl: asContentDisplayMode((filters as Partial<ContentDisplayFilters>).gl) ?? DEFAULT_CONTENT_DISPLAY_FILTERS.gl,
+  }
+}
+
 export interface LandingResult {
   section: LandingSection
   stories: LandingStory[]
@@ -53,6 +93,7 @@ export async function getLandingStories(
   categorySlugs: string[] = [],
   search = '',
   contentType: StoryType | null = null,
+  contentFilters: ContentDisplayFilters = DEFAULT_CONTENT_DISPLAY_FILTERS,
 ): Promise<LandingResult> {
   const offset = (page - 1) * limit
   const searchPattern = `%${search}%`
@@ -129,6 +170,37 @@ export async function getLandingStories(
         AND (${search} = '' OR stories.title ILIKE ${searchPattern})
         AND (${contentType}::story_type IS NULL OR stories.type = ${contentType}::story_type)
         AND (
+          ${contentFilters.age18} = 'both'
+          OR (${contentFilters.age18} = 'hide' AND COALESCE(stories.age_rating, 0) < 18)
+          OR (${contentFilters.age18} = 'only' AND COALESCE(stories.age_rating, 0) >= 18)
+        )
+        AND (
+          ${contentFilters.bl} = 'both'
+          OR (${contentFilters.bl} = 'hide' AND NOT EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('bl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+          OR (${contentFilters.bl} = 'only' AND EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('bl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+        )
+        AND (
+          ${contentFilters.gl} = 'both'
+          OR (${contentFilters.gl} = 'hide' AND NOT EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('gl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+          OR (${contentFilters.gl} = 'only' AND EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('gl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+        )
+        AND (
           CARDINALITY(${categorySlugArray}) = 0
           OR EXISTS (
             SELECT 1
@@ -166,6 +238,37 @@ export async function getLandingStories(
         AND users.deleted_at IS NULL
         AND (${search} = '' OR stories.title ILIKE ${searchPattern})
         AND (${contentType}::story_type IS NULL OR stories.type = ${contentType}::story_type)
+        AND (
+          ${contentFilters.age18} = 'both'
+          OR (${contentFilters.age18} = 'hide' AND COALESCE(stories.age_rating, 0) < 18)
+          OR (${contentFilters.age18} = 'only' AND COALESCE(stories.age_rating, 0) >= 18)
+        )
+        AND (
+          ${contentFilters.bl} = 'both'
+          OR (${contentFilters.bl} = 'hide' AND NOT EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('bl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+          OR (${contentFilters.bl} = 'only' AND EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('bl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+        )
+        AND (
+          ${contentFilters.gl} = 'both'
+          OR (${contentFilters.gl} = 'hide' AND NOT EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('gl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+          OR (${contentFilters.gl} = 'only' AND EXISTS (
+            SELECT 1 FROM genres
+            WHERE LOWER(genres.slug) IN ('gl', 'bl-gl')
+              AND (genres.id = stories.primary_genre_id OR genres.id = stories.secondary_genre_id)
+          ))
+        )
         AND (
           CARDINALITY(${categorySlugArray}) = 0
           OR EXISTS (
