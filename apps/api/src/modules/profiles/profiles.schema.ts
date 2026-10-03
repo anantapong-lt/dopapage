@@ -62,6 +62,11 @@ export const readingSettingsSchema = t.Object({
   ]),
   autoNext: t.Boolean(),
   autoPurchase: t.Boolean(),
+  preferredTtsVoice: t.Union([
+    t.Literal('female'),
+    t.Literal('young_male'),
+    t.Literal('old_male'),
+  ]),
   contentFilters: t.Object({
     age18: contentDisplayModeSchema,
     bl: contentDisplayModeSchema,

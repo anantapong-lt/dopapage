@@ -19,6 +19,7 @@ export interface ReadingSettings {
   theme: 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
   autoNext: boolean
   autoPurchase: boolean
+  preferredTtsVoice: TtsVoiceSlot
   contentFilters: {
     age18: ContentDisplayMode
     bl: ContentDisplayMode
@@ -27,11 +28,18 @@ export interface ReadingSettings {
 }
 
 type ContentDisplayMode = 'hide' | 'both' | 'only'
+type TtsVoiceSlot = 'female' | 'young_male' | 'old_male'
 
 const DEFAULT_CONTENT_FILTERS: ReadingSettings['contentFilters'] = {
   age18: 'both',
   bl: 'both',
   gl: 'both',
+}
+
+const DEFAULT_TTS_VOICE: TtsVoiceSlot = 'female'
+
+function ttsVoiceSlot(value: unknown): TtsVoiceSlot | undefined {
+  return value === 'female' || value === 'young_male' || value === 'old_male' ? value : undefined
 }
 
 function contentDisplayMode(value: unknown): ContentDisplayMode | undefined {
@@ -73,6 +81,7 @@ function parseReadingSettings(value: unknown): ReadingSettings | undefined {
     theme,
     autoNext,
     autoPurchase,
+    preferredTtsVoice: ttsVoiceSlot(settings.preferredTtsVoice) ?? DEFAULT_TTS_VOICE,
     contentFilters,
   }
 }
@@ -444,6 +453,7 @@ export async function updateReadingSettings(
       'theme', ${settings.theme}::TEXT,
       'autoNext', ${settings.autoNext}::BOOLEAN,
       'autoPurchase', ${settings.autoPurchase}::BOOLEAN,
+      'preferredTtsVoice', ${settings.preferredTtsVoice}::TEXT,
       'contentFilters', jsonb_build_object(
         'age18', ${settings.contentFilters.age18}::TEXT,
         'bl', ${settings.contentFilters.bl}::TEXT,

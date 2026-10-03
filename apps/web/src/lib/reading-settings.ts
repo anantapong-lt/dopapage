@@ -1,6 +1,13 @@
 export type ReadingTheme = 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
 export type ReadingFont = 'sans' | 'serif' | 'arial' | 'cordia-new' | 'tf-nopscript' | 'sarabun' | 'noto-serif-thai' | 'prompt' | 'layiji-mahaniyom'
 export type ContentDisplayMode = 'hide' | 'both' | 'only'
+export type TtsVoiceSlot = 'female' | 'young_male' | 'old_male'
+
+export const TTS_VOICE_LABELS: Record<TtsVoiceSlot, string> = {
+  female: 'ผู้หญิง',
+  young_male: 'ผู้ชายวัยหนุ่ม',
+  old_male: 'ผู้ชายสูงวัย',
+}
 
 export interface ContentDisplaySettings {
   age18: ContentDisplayMode
@@ -14,6 +21,7 @@ export interface ReadingSettings {
   theme: ReadingTheme
   autoNext: boolean
   autoPurchase: boolean
+  preferredTtsVoice: TtsVoiceSlot
   contentFilters: ContentDisplaySettings
 }
 
@@ -23,6 +31,7 @@ export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   theme: 'light',
   autoNext: true,
   autoPurchase: false,
+  preferredTtsVoice: 'female',
   contentFilters: {
     age18: 'both',
     bl: 'both',

@@ -490,8 +490,14 @@ function parseAudioTimeline(value: unknown): AudioTimelineEntry[] {
   ))
 }
 
+export interface ChapterAudioVersion {
+  voice_slot: 'female' | 'young_male' | 'old_male'
+  audio_url: string
+  audio_timeline: AudioTimelineEntry[]
+}
+
 export async function findNovelChapterContent(chapterId: string): Promise<{
-  content: string; audio_url: string | null; audio_timeline: AudioTimelineEntry[]
+  content: string; audio_url: string | null; audio_timeline: AudioTimelineEntry[]; audio_versions: ChapterAudioVersion[]
 }> {
   const [chapter] = await db<Array<{ content: string }>>`
     SELECT content
@@ -501,18 +507,39 @@ export async function findNovelChapterContent(chapterId: string): Promise<{
   `
   const content = chapter?.content ?? ''
   const sourceHash = createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('hex')
-  const [audio] = await db<Array<{ audio_url: string | null; audio_timeline: unknown }>>`
-    SELECT NULLIF(audio_url, '') AS audio_url, audio_timeline
-    FROM tts_jobs
-    WHERE chapter_id = ${chapterId}
-      AND status = 'done'
-      AND source_hash = ${sourceHash}
-      AND NULLIF(audio_url, '') IS NOT NULL
-    ORDER BY created_at DESC, id DESC
-    LIMIT 1
+  const audioVersions = await db<Array<{ voice_slot: ChapterAudioVersion['voice_slot']; audio_url: string; audio_timeline: unknown }>>`
+    SELECT voice_slot, audio_url, audio_timeline
+    FROM (
+      SELECT DISTINCT ON (voice_slot)
+        voice_slot, NULLIF(audio_url, '') AS audio_url, audio_timeline, created_at, id
+      FROM tts_jobs
+      WHERE chapter_id = ${chapterId}
+        AND status = 'done'
+        AND source_hash = ${sourceHash}
+        AND NULLIF(audio_url, '') IS NOT NULL
+      ORDER BY voice_slot, created_at DESC, id DESC
+    ) AS audio_variants
+    ORDER BY
+      CASE voice_slot
+        WHEN 'female' THEN 0
+        WHEN 'young_male' THEN 1
+        WHEN 'old_male' THEN 2
+        ELSE 3
+      END
   `
+  const parsedAudioVersions = audioVersions.map((audio) => ({
+    voice_slot: audio.voice_slot,
+    audio_url: audio.audio_url,
+    audio_timeline: parseAudioTimeline(audio.audio_timeline),
+  }))
+  const audio = parsedAudioVersions[0]
 
-  return { content, audio_url: audio?.audio_url ?? null, audio_timeline: parseAudioTimeline(audio?.audio_timeline) }
+  return {
+    content,
+    audio_url: audio?.audio_url ?? null,
+    audio_timeline: audio?.audio_timeline ?? [],
+    audio_versions: parsedAudioVersions,
+  }
 }
 
 export async function findMangaChapterPages(

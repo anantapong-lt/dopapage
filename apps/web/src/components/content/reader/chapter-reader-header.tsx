@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { type RefObject, useEffect, useState } from 'react'
 import { ShareButtons } from '@/components/common/share-buttons'
 import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -12,8 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { PublicReaderChapter } from '@/interface/content.interface'
-import { READING_THEMES, type ReadingSettings } from '@/lib/reading-settings'
+import type { PublicChapterResponse, PublicReaderChapter } from '@/interface/content.interface'
+import { READING_THEMES, TTS_VOICE_LABELS, type ReadingSettings, type TtsVoiceSlot } from '@/lib/reading-settings'
 import { ChapterTocDialog } from './chapter-toc-dialog'
 import { ReadingSettingsMenu } from './reading-settings-menu'
 
@@ -32,9 +33,12 @@ export function ChapterReaderHeader({
   showReadingSettings,
   hasAudio,
   audioUrl,
+  audioVersions,
+  selectedVoiceSlot,
   settings,
   navbarVisible,
   onSettingsChange,
+  onVoiceSlotChange,
   onAudioTimeChange,
   onAudioPlayingChange,
   audioRef,
@@ -49,9 +53,12 @@ export function ChapterReaderHeader({
   showReadingSettings: boolean
   hasAudio: boolean
   audioUrl: string | null
+  audioVersions: PublicChapterResponse['audio_versions']
+  selectedVoiceSlot: TtsVoiceSlot | null
   settings: ReadingSettings
   navbarVisible: boolean
   onSettingsChange: (settings: ReadingSettings) => void
+  onVoiceSlotChange: (voiceSlot: TtsVoiceSlot) => void
   onAudioTimeChange: (time: number) => void
   onAudioPlayingChange: (isPlaying: boolean) => void
   audioRef: RefObject<HTMLAudioElement | null>
@@ -192,10 +199,24 @@ export function ChapterReaderHeader({
 
                 <section>
                   <p className="mb-2 text-sm font-bold">เลือกเสียงบรรยาย</p>
-                  <div className="rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3">
-                    <p className="font-bold text-primary">เสียงบรรยายของตอนนี้</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">พร้อมฟัง</p>
-                  </div>
+                  <Select
+                    value={selectedVoiceSlot ?? undefined}
+                    onValueChange={(value) => onVoiceSlotChange(value as TtsVoiceSlot)}
+                  >
+                    <SelectTrigger className="h-auto w-full rounded-2xl border-primary/30 bg-primary/10 px-4 py-3 text-left">
+                      <span className="min-w-0">
+                        <span className="block font-bold text-primary"><SelectValue placeholder="เลือกเสียงบรรยาย" /></span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">เลือกเวอร์ชันเสียงสำหรับตอนนี้</span>
+                      </span>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {audioVersions.map((audio) => (
+                        <SelectItem key={audio.voice_slot} value={audio.voice_slot}>
+                          {TTS_VOICE_LABELS[audio.voice_slot]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </section>
 
                 <section className="rounded-[1.5rem] border bg-muted/30 p-4">

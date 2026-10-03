@@ -47,6 +47,13 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   const audioRef = useRef<HTMLAudioElement>(null)
   const isAutoAdvancingRef = useRef(false)
   const hasChangedReadingSettingsRef = useRef(false)
+  const selectedAudio = data.audio_versions.find((audio) => audio.voice_slot === settings.preferredTtsVoice)
+    ?? data.audio_versions[0]
+    ?? (data.audio_url ? {
+      voice_slot: settings.preferredTtsVoice,
+      audio_url: data.audio_url,
+      audio_timeline: data.audio_timeline,
+    } : null)
 
   function seekAudio(time: number) {
     const audio = audioRef.current
@@ -187,11 +194,14 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           chapterTitle={data.chapter.title}
           chapters={chapters}
           showReadingSettings={data.story.type === 'novel'}
-          hasAudio={data.story.type === 'novel' && Boolean(data.audio_url)}
-          audioUrl={data.audio_url}
+          hasAudio={data.story.type === 'novel' && Boolean(selectedAudio)}
+          audioUrl={selectedAudio?.audio_url ?? null}
+          audioVersions={data.audio_versions}
+          selectedVoiceSlot={selectedAudio?.voice_slot ?? null}
           settings={settings}
           navbarVisible={readerNavbarVisible}
           onSettingsChange={updateSettings}
+          onVoiceSlotChange={(voiceSlot) => updateSettings({ ...settings, preferredTtsVoice: voiceSlot })}
           onAudioTimeChange={setAudioCurrentTime}
           onAudioPlayingChange={setIsAutoReading}
           audioRef={audioRef}
@@ -212,8 +222,8 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
             <NovelChapterContent
               content={data.content ?? ''}
               settings={settings}
-              audioUrl={data.audio_url}
-              audioTimeline={data.audio_timeline}
+              audioUrl={selectedAudio?.audio_url ?? null}
+              audioTimeline={selectedAudio?.audio_timeline ?? []}
               showAudioPlayer={showAudioPlayer}
               initialAudioTime={audioStartTime}
               initialPlaybackRate={audioPlaybackRate}

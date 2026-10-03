@@ -245,22 +245,23 @@ export async function completeTtsJob(
   const upload = await createTtsUploadUrl(userId, jobId, workerId)
   const audioUrl = createPublicAssetUrl(upload.audio_key)
   const supersededAudioKeys = await db.begin(async (transaction) => {
-    const [completed] = await transaction<{ chapter_id: string }[]>`
+    const [completed] = await transaction<{ chapter_id: string; voice_slot: string }[]>`
       UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
         duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), audio_timeline = ${JSON.stringify(compactTimeline)}::JSONB, completed_at = NOW(),
         lease_expires_at = NULL, updated_at = NOW()
       WHERE id = ${jobId} AND requested_by = ${userId} AND worker_id = ${workerId}::UUID
         AND status = ${TTS_JOB_STATUS.PROCESSING} AND lease_expires_at > NOW()
-      RETURNING chapter_id
+      RETURNING chapter_id, voice_slot
     `
     if (!completed) throw new TtsAgentError('Job could not be completed', 409)
 
-    // Keep only the newly completed audio for this writer and chapter. The
-    // storage deletion is deliberately deferred until this transaction commits.
+    // Keep one current recording per voice. Other voice variants remain
+    // available for readers to choose from.
     const obsolete = await transaction<{ audio_key: string | null }[]>`
       DELETE FROM tts_jobs
       WHERE chapter_id = ${completed.chapter_id} AND requested_by = ${userId}
-        AND id <> ${jobId} AND status = ${TTS_JOB_STATUS.DONE}
+        AND voice_slot = ${completed.voice_slot} AND id <> ${jobId}
+        AND status = ${TTS_JOB_STATUS.DONE}
       RETURNING NULLIF(audio_key, '') AS audio_key
     `
     return obsolete.flatMap(({ audio_key }) => audio_key ? [audio_key] : [])

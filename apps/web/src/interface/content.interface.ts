@@ -138,6 +138,17 @@ export interface PublicChapterResponse {
   chapters: PublicReaderChapter[]
   content: string | null
   audio_url: string | null
+  audio_versions: Array<{
+    voice_slot: 'female' | 'young_male' | 'old_male'
+    audio_url: string
+    audio_timeline: Array<{
+      text?: string
+      start_offset?: number
+      end_offset?: number
+      start_seconds: number
+      end_seconds: number
+    }>
+  }>
   audio_timeline: Array<{
     text?: string
     start_offset?: number
