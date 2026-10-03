@@ -7,6 +7,10 @@ import { StoryType } from '@/constants/story.constant'
 import type { LandingSection } from '@/interface/landing.interface'
 import { SearchIcon, SearchXIcon } from 'lucide-react'
 
+// Search results come from the API service, which is unavailable while the
+// web image itself is being built.
+export const dynamic = 'force-dynamic'
+
 interface SearchPageProps {
   searchParams: Promise<{ category?: string | string[]; search?: string; sort?: string; type?: string }>
 }

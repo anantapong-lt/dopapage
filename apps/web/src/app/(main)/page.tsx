@@ -9,6 +9,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { getLandingStories } from '@/controllers/landing.controller'
 import { getRandomWriterProfiles } from '@/controllers/profile.controller'
 
+// The API service is only resolvable after Docker Compose starts the runtime network.
+// Keep this API-backed page out of the image-build prerender phase.
+export const dynamic = 'force-dynamic'
+
 const PAGE_SIZE = 12
 
 async function DeferredPopularSection() {
