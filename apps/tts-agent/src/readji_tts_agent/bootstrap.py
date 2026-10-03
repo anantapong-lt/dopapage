@@ -24,7 +24,6 @@ APP_NAME = "Dopapage"
 CHUNK_SIZE = 1024 * 1024
 RUNTIME_REQUIRED_FILES = (
     "Dopapage.exe",
-    "_internal/setuptools/_vendor/jaraco/text/Lorem ipsum.txt",
 )
 
 

@@ -241,7 +241,12 @@ export function NovelChapterContent({
     const selected = [...contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')]
       .filter((element) => element.dataset.readAlongStart === selectedTime)
     const end = Math.max(...selected.map((element) => Number(element.dataset.readAlongEnd)))
-    if (Number.isFinite(end) && audioCurrentTime >= end) setSelectedTime(null)
+    if (Number.isFinite(end) && audioCurrentTime >= end) {
+      setSelectedTime(null)
+      // Clicking also leaves the same group hovered until the mouse moves.
+      // Clear that stale hover so it cannot keep the completed box visible.
+      setHoveredTime((current) => current === selectedTime ? null : current)
+    }
   }, [audioCurrentTime, selectedTime])
 
   useEffect(() => {
@@ -291,6 +296,15 @@ export function NovelChapterContent({
   function updateReadAlong(currentTime: number) {
     const root = contentRef.current
     if (!root) return
+    if (selectedTime !== null) {
+      const selected = [...root.querySelectorAll<HTMLElement>('[data-read-along-start]')]
+        .filter((element) => element.dataset.readAlongStart === selectedTime)
+      const selectedEnd = Math.max(...selected.map((element) => Number(element.dataset.readAlongEnd)))
+      if (Number.isFinite(selectedEnd) && currentTime >= selectedEnd) {
+        setSelectedTime(null)
+        setHoveredTime((current) => current === selectedTime ? null : current)
+      }
+    }
     const highlight = {
       light: 'rgba(245, 158, 11, 0.30)',
       sepia: 'rgba(180, 120, 45, 0.32)',
@@ -315,12 +329,21 @@ export function NovelChapterContent({
 
   function findReadAlong(event: MouseEvent<HTMLDivElement>) {
     if (!audioUrl || !contentRef.current) return
-    return [...contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')].find((element) => {
-      return Array.from(element.getClientRects()).some((rect) => (
-        event.clientX >= rect.left && event.clientX <= rect.right
-        && event.clientY >= rect.top && event.clientY <= rect.bottom
-      ))
-    })
+    const bounds = contentRef.current.getBoundingClientRect()
+    if (event.clientX < bounds.left || event.clientX > bounds.right) return
+    let closest: HTMLElement | undefined
+    let distance = Infinity
+    for (const element of contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')) {
+      for (const rect of Array.from(element.getClientRects())) {
+        if (event.clientY < rect.top - 3 || event.clientY > rect.bottom + 3) continue
+        const horizontalDistance = Math.max(rect.left - event.clientX, event.clientX - rect.right, 0)
+        if (horizontalDistance < distance) {
+          closest = element
+          distance = horizontalDistance
+        }
+      }
+    }
+    return closest
   }
 
   function seekReadAlong(event: MouseEvent<HTMLDivElement>) {
@@ -357,6 +380,7 @@ export function NovelChapterContent({
         <div
           ref={frameRef}
           className="relative"
+          style={{ cursor: hoveredTime !== null ? 'pointer' : 'text' }}
           onClick={seekReadAlong}
           onMouseMove={(event) => setHoveredTime(findReadAlong(event)?.dataset.readAlongStart ?? null)}
           onMouseLeave={() => setHoveredTime(null)}
@@ -387,7 +411,7 @@ export function NovelChapterContent({
           {isProduction ? (
             <div
               aria-hidden
-              className="absolute inset-0 z-10 cursor-text"
+              className="absolute inset-0 z-10 cursor-[inherit]"
               onContextMenu={preventInteraction}
               onDragStart={preventInteraction}
             />
