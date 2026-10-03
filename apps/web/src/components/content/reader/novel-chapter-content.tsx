@@ -213,7 +213,7 @@ export function NovelChapterContent({
     const root = contentRef.current
     if (!root) return
     let active: HTMLElement | null = null
-    root.querySelectorAll<HTMLElement>('[data-read-along-start]').forEach((paragraph) => {
+    for (const paragraph of root.querySelectorAll<HTMLElement>('[data-read-along-start]')) {
       const start = Number(paragraph.dataset.readAlongStart)
       const end = Number(paragraph.dataset.readAlongEnd)
       const isActive = Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime < end
@@ -221,7 +221,7 @@ export function NovelChapterContent({
       paragraph.classList.toggle('rounded-md', isActive)
       paragraph.classList.add('transition-colors')
       if (isActive) active = paragraph
-    })
+    }
     if (active && active !== activeParagraphRef.current) {
       activeParagraphRef.current = active
       active.scrollIntoView({ behavior: 'smooth', block: 'center' })
