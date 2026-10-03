@@ -26,7 +26,10 @@ def source_snapshot() -> dict[Path, tuple[int, int]]:
 def start_app() -> subprocess.Popen[object]:
     print("Starting TTS Agent. Save a Python file to restart it automatically.")
     environment = os.environ.copy()
-    environment["READJI_TTS_API_URL"] = "http://localhost:4000"
+    # `bun run tts` is also used to render production chapter audio from this
+    # checkout, so default to the VPS API. An explicit environment value still
+    # supports a local API when development needs it.
+    environment.setdefault("READJI_TTS_API_URL", "http://185.84.161.98:4000")
     existing_python_path = environment.get("PYTHONPATH")
     environment["PYTHONPATH"] = str(SOURCE_ROOT) if not existing_python_path else os.pathsep.join((str(SOURCE_ROOT), existing_python_path))
     return subprocess.Popen([sys.executable, "-m", "readji_tts_agent.app"], cwd=PROJECT_ROOT, env=environment)
