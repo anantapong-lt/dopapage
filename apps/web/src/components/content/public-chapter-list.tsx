@@ -298,55 +298,54 @@ export function PublicChapterList({
               <TooltipContent>{displayMode === 'list' ? 'แสดงแบบ 3 คอลัมน์' : 'แสดงแบบแถวเดียว'}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {purchasableChapters.length > 0 && !isSelectionMode ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSelectionMode(true)}
+              className="cursor-pointer rounded-full font-semibold"
+            >
+              เลือกตอน
+            </Button>
+          ) : null}
         </div>
       </div>
 
-      {purchasableChapters.length > 0 ? (
+      {purchasableChapters.length > 0 && isSelectionMode ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-muted/25 px-4 py-3 sm:px-6">
-          {isSelectionMode ? (
-            <>
-              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-muted-foreground">
-                <Checkbox
-                  checked={allPurchasableSelected
-                    ? true
-                    : selectedChapters.length > 0
-                      ? 'indeterminate'
-                      : false}
-                  onCheckedChange={toggleAllPurchasable}
-                  className="cursor-pointer"
-                />
-                เลือกทั้งหมดในหน้านี้
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedChapterIds([])
-                    setIsSelectionMode(false)
-                  }}
-                  className="h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  ยกเลิก
-                </button>
-                <button
-                  type="button"
-                  disabled={selectedChapters.length === 0}
-                  onClick={() => setPurchaseDialogChapters(selectedChapters)}
-                  className="h-9 cursor-pointer rounded-full bg-primary px-4 text-sm font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  ซื้อ ({selectedChapters.length.toLocaleString('th-TH')})
-                </button>
-              </div>
-            </>
-          ) : (
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <Checkbox
+              checked={allPurchasableSelected
+                ? true
+                : selectedChapters.length > 0
+                  ? 'indeterminate'
+                  : false}
+              onCheckedChange={toggleAllPurchasable}
+              className="cursor-pointer"
+            />
+            เลือกทั้งหมดในหน้านี้
+          </label>
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsSelectionMode(true)}
-              className="ml-auto h-9 cursor-pointer rounded-full border border-border bg-card px-4 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
+              onClick={() => {
+                setSelectedChapterIds([])
+                setIsSelectionMode(false)
+              }}
+              className="h-9 cursor-pointer rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
-              เลือกตอน
+              ยกเลิก
             </button>
-          )}
+            <button
+              type="button"
+              disabled={selectedChapters.length === 0}
+              onClick={() => setPurchaseDialogChapters(selectedChapters)}
+              className="h-9 cursor-pointer rounded-full bg-primary px-4 text-sm font-extrabold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              ซื้อ ({selectedChapters.length.toLocaleString('th-TH')})
+            </button>
+          </div>
         </div>
       ) : null}
 
