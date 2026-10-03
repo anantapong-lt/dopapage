@@ -135,7 +135,7 @@ VOICE_LABELS = {
 }
 
 STATUS_PRESENTATION = {
-    TTS_JOB_STATUS["QUEUED"]: ("อยู่ในคิว", "#fff7ed", "#c2410c"),
+    TTS_JOB_STATUS["QUEUED"]: ("รอคิว", "#fff7ed", "#c2410c"),
     TTS_JOB_STATUS["PROCESSING"]: ("กำลังสร้างเสียง", "#eff6ff", "#1d4ed8"),
     TTS_JOB_STATUS["DONE"]: ("สร้างเสร็จแล้ว", "#ecfdf5", "#047857"),
     TTS_JOB_STATUS["FAILED"]: ("สร้างไม่สำเร็จ", "#fef2f2", "#b91c1c"),
