@@ -1,7 +1,7 @@
 'use client'
 
 import { ChevronDown, ChevronUp, Pause, Play, RotateCcw, Volume1, Volume2, VolumeX } from 'lucide-react'
-import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { ReadingSettings } from '@/lib/reading-settings'
 import { READING_FONTS, READING_THEMES } from '@/lib/reading-settings'
@@ -9,7 +9,9 @@ import { ReaderContentSkeleton } from './reader-content-skeleton'
 import { useReaderContentProtection } from './use-reader-content-protection'
 
 type AudioTimelineEntry = {
-  text: string
+  text?: string
+  start_offset?: number
+  end_offset?: number
   start_seconds: number
   end_seconds: number
 }
@@ -51,46 +53,65 @@ function isSafeChapterImageSource(value: string) {
   return encoded.length > 0 && Math.floor((encoded.length * 3) / 4) - padding <= 5 * 1024 * 1024
 }
 
-function normalizeSpokenText(value: string) {
-  return value.replace(/\s+/g, ' ').trim()
-}
-
-function addReadAlongMetadata(document: Document, timeline: AudioTimelineEntry[]) {
-  const paragraphs = Array.from(document.body.querySelectorAll<HTMLElement>(
-    'p, span[data-type="paragraph"], h1, h2, h3, h4, h5, h6, li, blockquote, pre',
-  ))
-    .filter((paragraph) => Boolean(normalizeSpokenText(paragraph.textContent ?? '')))
-  if (!paragraphs.length || !timeline.length) return
-
-  const boundaries = timeline.filter((entry) => (
-    typeof entry.text === 'string'
-    && Number.isFinite(entry.start_seconds)
-    && Number.isFinite(entry.end_seconds)
-    && entry.end_seconds > entry.start_seconds
-  )).reduce<Array<{ start: number; end: number; entry: AudioTimelineEntry }>>((result, entry) => {
-    const start = result.at(-1)?.end ?? 0
-    result.push({ start, end: start + normalizeSpokenText(entry.text).length, entry })
-    return result
-  }, [])
-  if (!boundaries.length) return
-
-  let characterOffset = 0
-  for (const paragraph of paragraphs) {
-    const length = normalizeSpokenText(paragraph.textContent ?? '').length
-    const paragraphStart = characterOffset
-    const paragraphEnd = paragraphStart + length
-    characterOffset = paragraphEnd + 1
-    const first = boundaries.find((boundary) => boundary.end > paragraphStart)
-    const last = [...boundaries].reverse().find((boundary) => boundary.start < paragraphEnd)
-    if (!first || !last) continue
-
-    const timeAt = (position: number, boundary: typeof first) => {
-      const span = Math.max(1, boundary.end - boundary.start)
-      const ratio = Math.max(0, Math.min(1, (position - boundary.start) / span))
-      return boundary.entry.start_seconds + (boundary.entry.end_seconds - boundary.entry.start_seconds) * ratio
+function addReadAlongMetadata(document: Document, timeline: AudioTimelineEntry[], source: string) {
+  // Match actual text, including bare text and text split across formatting tags.
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  const nodes: Array<{ node: Text; start: number; offsets: number[] }> = []
+  let spokenText = ''
+  while (walker.nextNode()) {
+    const node = walker.currentNode as Text
+    const offsets: number[] = []
+    const start = spokenText.length
+    for (let i = 0; i < node.data.length; i += 1) {
+      if (/\s/.test(node.data[i])) continue
+      offsets.push(i)
+      spokenText += node.data[i]
     }
-    paragraph.dataset.readAlongStart = String(timeAt(paragraphStart, first))
-    paragraph.dataset.readAlongEnd = String(timeAt(paragraphEnd, last))
+    if (offsets.length) nodes.push({ node, start, offsets })
+  }
+  const matches: Array<{ start: number; end: number; entry: AudioTimelineEntry }> = []
+  let cursor = 0
+  for (const entry of timeline) {
+    if (!Number.isFinite(entry.start_seconds)
+      || !Number.isFinite(entry.end_seconds) || entry.end_seconds <= entry.start_seconds) continue
+    // New entries reference UTF-16 positions in the original HTML. Keep old
+    // text timelines readable until their audio is regenerated.
+    const hasOffsets = Number.isInteger(entry.start_offset) && Number.isInteger(entry.end_offset)
+      && entry.start_offset! >= 0 && entry.end_offset! > entry.start_offset!
+      && entry.end_offset! <= source.length
+    const text = (hasOffsets
+      ? new DOMParser().parseFromString(source.slice(entry.start_offset, entry.end_offset), 'text/html').body.textContent ?? ''
+      : entry.text ?? '').replace(/\s/g, '')
+    if (!text) continue
+    const start = spokenText.indexOf(text, cursor)
+    if (start < 0) continue
+    cursor = start + text.length
+    matches.push({ start, end: cursor, entry })
+  }
+  for (const { node, start, offsets } of nodes) {
+    const fragment = document.createDocumentFragment()
+    let offset = 0
+    for (const match of matches) {
+      const from = Math.max(start, match.start)
+      const to = Math.min(start + offsets.length, match.end)
+      if (from >= to) continue
+      const first = offsets[from - start]
+      const last = offsets[to - start - 1] + 1
+      fragment.append(document.createTextNode(node.data.slice(offset, first)))
+      const span = document.createElement('span')
+      // Clone the decoration on wrapped lines without changing text geometry.
+      span.className = 'rounded-[0.3em] transition-[background-color,box-shadow] duration-300 ease-out motion-reduce:transition-none'
+      span.style.boxDecorationBreak = 'clone'
+      span.style.setProperty('-webkit-box-decoration-break', 'clone')
+      span.dataset.readAlongStart = String(match.entry.start_seconds)
+      span.dataset.readAlongEnd = String(match.entry.end_seconds)
+      span.textContent = node.data.slice(first, last)
+      fragment.append(span)
+      offset = last
+    }
+    if (!offset) continue
+    fragment.append(document.createTextNode(node.data.slice(offset)))
+    node.replaceWith(fragment)
   }
 }
 
@@ -152,18 +173,19 @@ function sanitizeChapterHtml(html: string, timeline: AudioTimelineEntry[]) {
 
   const paragraphSelector = 'p, span[data-type="paragraph"]'
   for (const paragraph of Array.from(document.body.querySelectorAll<HTMLElement>(paragraphSelector))) {
-    const previous = paragraph.previousElementSibling
-    paragraph.style.removeProperty('text-indent')
+    const text = paragraph.textContent?.trim() ?? ''
     if (
-      previous?.matches(paragraphSelector) &&
-      !previous.textContent?.trim() &&
-      paragraph.style.textAlign !== 'center'
+      text &&
+      !paragraph.closest('h1, h2, h3, h4, h5, h6, li, blockquote, pre') &&
+      !['center', 'right', 'end'].includes(paragraph.style.textAlign)
     ) {
-      paragraph.style.textIndent = '2em'
+      const isDialogue = /^[“”"‘’'«「『]/u.test(text)
+      paragraph.style.textIndent = isDialogue ? '0' : '2em'
+      if (isDialogue) paragraph.style.textAlign = 'left'
     }
   }
 
-  addReadAlongMetadata(document, timeline)
+  addReadAlongMetadata(document, timeline, html)
 
   return document.body.innerHTML
 }
@@ -174,6 +196,11 @@ export function NovelChapterContent({
   audioUrl,
   audioTimeline,
   showAudioPlayer,
+  initialAudioTime,
+  initialPlaybackRate,
+  isAutoReading,
+  audioCurrentTime,
+  onSeekAudio,
   onBackToContent,
 }: {
   content: string
@@ -181,6 +208,11 @@ export function NovelChapterContent({
   audioUrl: string | null
   audioTimeline: AudioTimelineEntry[]
   showAudioPlayer: boolean
+  initialAudioTime: number
+  initialPlaybackRate: number
+  isAutoReading: boolean
+  audioCurrentTime: number
+  onSeekAudio: (time: number) => void
   onBackToContent: () => void
 }) {
   const { isProduction, preventInteraction } = useReaderContentProtection({ replaceNovelCopy: true })
@@ -189,10 +221,51 @@ export function NovelChapterContent({
     html: string
   } | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
+  const [hoveredTime, setHoveredTime] = useState<string | null>(null)
+  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [sentenceBox, setSentenceBox] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
   const activeParagraphRef = useRef<HTMLElement | null>(null)
   const [seekRequest, setSeekRequest] = useState<{ id: number; time: number } | null>(null)
   const theme = READING_THEMES[settings.theme]
   const safeContent = sanitizedContent?.source === content ? sanitizedContent.html : null
+  const contentHtml = useMemo(() => ({ __html: safeContent ?? '' }), [safeContent])
+
+  useEffect(() => {
+    setHoveredTime(null)
+    setSelectedTime(null)
+  }, [content, audioUrl])
+
+  useEffect(() => {
+    if (selectedTime === null || !contentRef.current) return
+    const selected = [...contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')]
+      .filter((element) => element.dataset.readAlongStart === selectedTime)
+    const end = Math.max(...selected.map((element) => Number(element.dataset.readAlongEnd)))
+    if (Number.isFinite(end) && audioCurrentTime >= end) setSelectedTime(null)
+  }, [audioCurrentTime, selectedTime])
+
+  useEffect(() => {
+    const root = contentRef.current
+    const frame = frameRef.current
+    if (!root || !frame) return
+    const updateBox = () => {
+      const time = hoveredTime ?? selectedTime
+      const rects = Array.from(root.querySelectorAll<HTMLElement>('[data-read-along-start]'))
+        .filter((element) => element.dataset.readAlongStart === time)
+        .flatMap((element) => Array.from(element.getClientRects()))
+      if (!rects.length) { setSentenceBox(null); return }
+      const origin = frame.getBoundingClientRect()
+      const bounds = root.getBoundingClientRect()
+      const top = Math.min(...rects.map((rect) => rect.top))
+      const bottom = Math.max(...rects.map((rect) => rect.bottom))
+      setSentenceBox({ top: top - origin.top - 3, left: bounds.left - origin.left,
+        width: bounds.width, height: bottom - top + 6 })
+    }
+    updateBox()
+    const observer = new ResizeObserver(updateBox)
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [hoveredTime, selectedTime, safeContent, settings.fontSize, settings.fontFamily])
 
   useEffect(() => {
     setSanitizedContent({
@@ -205,22 +278,34 @@ export function NovelChapterContent({
     if (showAudioPlayer) return
     activeParagraphRef.current = null
     contentRef.current?.querySelectorAll<HTMLElement>('[data-read-along-start]').forEach((paragraph) => {
-      paragraph.classList.remove('bg-primary/15', 'rounded-md')
+      paragraph.style.backgroundColor = ''
+      paragraph.style.boxShadow = ''
     })
   }, [showAudioPlayer])
+
+  useEffect(() => {
+    if ((!isAutoReading && !activeParagraphRef.current) || safeContent === null) return
+    updateReadAlong(audioCurrentTime)
+  }, [audioCurrentTime, isAutoReading, safeContent, settings.theme])
 
   function updateReadAlong(currentTime: number) {
     const root = contentRef.current
     if (!root) return
+    const highlight = {
+      light: 'rgba(245, 158, 11, 0.30)',
+      sepia: 'rgba(180, 120, 45, 0.32)',
+      gray: 'rgba(100, 116, 139, 0.30)',
+      sage: 'rgba(45, 135, 90, 0.30)',
+      dark: 'rgba(148, 163, 184, 0.36)',
+    }[settings.theme]
     let active: HTMLElement | null = null
     for (const paragraph of root.querySelectorAll<HTMLElement>('[data-read-along-start]')) {
       const start = Number(paragraph.dataset.readAlongStart)
       const end = Number(paragraph.dataset.readAlongEnd)
       const isActive = Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime < end
-      paragraph.classList.toggle('bg-primary/15', isActive)
-      paragraph.classList.toggle('rounded-md', isActive)
-      paragraph.classList.add('transition-colors')
-      if (isActive) active = paragraph
+      paragraph.style.backgroundColor = isActive ? highlight : ''
+      paragraph.style.boxShadow = isActive ? `0 0 0 0.12em ${highlight}` : ''
+      if (isActive && !active) active = paragraph
     }
     if (active && active !== activeParagraphRef.current) {
       activeParagraphRef.current = active
@@ -228,17 +313,25 @@ export function NovelChapterContent({
     }
   }
 
-  function seekReadAlong(event: MouseEvent<HTMLDivElement>) {
-    if (!showAudioPlayer || !audioUrl || !contentRef.current) return
-    const paragraph = [...contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')].find((element) => {
-      const rect = element.getBoundingClientRect()
-      return event.clientY >= rect.top && event.clientY <= rect.bottom
+  function findReadAlong(event: MouseEvent<HTMLDivElement>) {
+    if (!audioUrl || !contentRef.current) return
+    return [...contentRef.current.querySelectorAll<HTMLElement>('[data-read-along-start]')].find((element) => {
+      return Array.from(element.getClientRects()).some((rect) => (
+        event.clientX >= rect.left && event.clientX <= rect.right
+        && event.clientY >= rect.top && event.clientY <= rect.bottom
+      ))
     })
+  }
+
+  function seekReadAlong(event: MouseEvent<HTMLDivElement>) {
+    const paragraph = findReadAlong(event)
     if (!paragraph) return
     const start = Number(paragraph.dataset.readAlongStart)
     const end = Number(paragraph.dataset.readAlongEnd)
     if (!Number.isFinite(start) || !Number.isFinite(end)) return
-    setSeekRequest({ id: Date.now(), time: (start + end) / 2 })
+    setSelectedTime(paragraph.dataset.readAlongStart ?? null)
+    onSeekAudio(start)
+    updateReadAlong(start)
   }
 
   return (
@@ -251,6 +344,8 @@ export function NovelChapterContent({
           audioUrl={audioUrl}
           themeBackground={theme.background}
           themeText={theme.text}
+          initialAudioTime={initialAudioTime}
+          initialPlaybackRate={initialPlaybackRate}
           onBackToContent={onBackToContent}
           onTimeChange={updateReadAlong}
           seekRequest={seekRequest}
@@ -260,11 +355,24 @@ export function NovelChapterContent({
         <ReaderContentSkeleton />
       ) : (
         <div
+          ref={frameRef}
           className="relative"
           onClick={seekReadAlong}
+          onMouseMove={(event) => setHoveredTime(findReadAlong(event)?.dataset.readAlongStart ?? null)}
+          onMouseLeave={() => setHoveredTime(null)}
           onContextMenu={preventInteraction}
           onDragStart={preventInteraction}
         >
+          {sentenceBox ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute rounded-xl border"
+              style={{ ...sentenceBox,
+                backgroundColor: 'color-mix(in srgb, currentColor 7%, transparent)',
+                borderColor: 'color-mix(in srgb, currentColor 16%, transparent)',
+              }}
+            />
+          ) : null}
           <div
             ref={contentRef}
             className="mx-auto max-w-3xl select-none break-words [&_blockquote]:my-6 [&_blockquote]:border-l-4 [&_blockquote]:border-primary/35 [&_blockquote]:pl-4 [&_h1]:my-6 [&_h1]:text-3xl [&_h1]:font-bold [&_h2]:my-5 [&_h2]:text-2xl [&_h2]:font-bold [&_h3]:my-4 [&_h3]:text-xl [&_h3]:font-bold [&_hr]:my-8 [&_img]:mx-auto [&_img]:my-6 [&_img]:h-auto [&_img]:max-w-full [&_img]:rounded-lg [&_li]:my-1 [&_ol]:my-5 [&_ol]:list-decimal [&_ol]:pl-7 [&_p]:min-h-[1lh] [&_pre]:my-5 [&_pre]:overflow-x-auto [&_pre]:rounded-xl [&_pre]:bg-muted [&_pre]:p-4 [&_ul]:my-5 [&_ul]:list-disc [&_ul]:pl-7"
@@ -274,7 +382,7 @@ export function NovelChapterContent({
               fontSize: settings.fontSize,
               lineHeight: 2,
             }}
-            dangerouslySetInnerHTML={{ __html: safeContent }}
+            dangerouslySetInnerHTML={contentHtml}
           />
           {isProduction ? (
             <div
@@ -300,6 +408,8 @@ function NovelAudioPlayer({
   audioUrl,
   themeBackground,
   themeText,
+  initialAudioTime,
+  initialPlaybackRate,
   onBackToContent,
   onTimeChange,
   seekRequest,
@@ -307,6 +417,8 @@ function NovelAudioPlayer({
   audioUrl: string
   themeBackground: string
   themeText: string
+  initialAudioTime: number
+  initialPlaybackRate: number
   onBackToContent: () => void
   onTimeChange: (currentTime: number) => void
   seekRequest: { id: number; time: number } | null
@@ -316,14 +428,16 @@ function NovelAudioPlayer({
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [volume, setVolume] = useState(1)
-  const [playbackRate, setPlaybackRate] = useState(1)
+  const [playbackRate, setPlaybackRate] = useState(initialPlaybackRate)
   const [showAudioControls, setShowAudioControls] = useState(false)
 
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
+    audio.currentTime = initialAudioTime
+    setCurrentTime(initialAudioTime)
     audio.play().catch(() => setIsPlaying(false))
-  }, [audioUrl])
+  }, [audioUrl, initialAudioTime])
 
   useEffect(() => {
     const audio = audioRef.current

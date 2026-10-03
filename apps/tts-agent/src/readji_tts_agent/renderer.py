@@ -630,10 +630,16 @@ class _LocalVoxCpmRenderer:
 
     @staticmethod
     def _chunks(text: str, maximum: int = MAXIMUM_CHUNK_CHARACTERS) -> list[str]:
-        sentences = [part.strip() for part in re.split(r"(?<=[.!?…])\s+|\n+", text) if part.strip()]
+        # Render short spoken phrases separately so timestamps come from actual
+        # audio lengths. Thai prose often uses spaces rather than punctuation.
+        maximum = min(maximum, 120)
+        sentences = [part.strip() for part in re.split(r"(?<=[.!?…])\s+|\n+|(?<=[\u0e00-\u0e7f])\s+(?!ๆ)", text) if part.strip()]
         chunks: list[str] = []
         current = ""
         for sentence in sentences:
+            if current:
+                sentence = f"{current} {sentence}"
+                current = ""
             while len(sentence) > maximum:
                 if current:
                     chunks.append(current)
@@ -642,12 +648,11 @@ class _LocalVoxCpmRenderer:
                 split_at = split_at if split_at > maximum // 2 else maximum
                 chunks.append(sentence[:split_at].strip())
                 sentence = sentence[split_at:].strip()
-            next_text = f"{current} {sentence}".strip()
-            if current and len(next_text) > maximum:
-                chunks.append(current)
+            # Avoid sending isolated Thai particles or repetition marks to TTS.
+            if len(sentence) < 24:
                 current = sentence
             else:
-                current = next_text
+                chunks.append(sentence)
         if current:
             chunks.append(current)
         return chunks

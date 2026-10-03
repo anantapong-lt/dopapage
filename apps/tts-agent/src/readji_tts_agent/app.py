@@ -18,11 +18,11 @@ import uuid
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 import httpx
-from PySide6.QtCore import QAbstractTableModel, QEvent, QLocale, QModelIndex, Qt, QSettings, QThread, QTimer, QUrl, Signal
+from PySide6.QtCore import QAbstractTableModel, QEvent, QLocale, QModelIndex, QStringListModel, Qt, QSettings, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QPainter
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QSpinBox, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
-from qfluentwidgets import BodyLabel, CheckBox, ComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
+from PySide6.QtWidgets import QApplication, QCompleter, QDialog, QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QSpinBox, QStyle, QStyleOptionViewItem, QVBoxLayout, QWidget
+from qfluentwidgets import BodyLabel, CheckBox, ComboBox, EditableComboBox, FluentIcon, FluentWindow, InfoBar, InfoBarPosition, LineEdit, MessageBox, NavigationItemPosition, PasswordLineEdit, PrimaryPushButton, ProgressBar, PushButton, SubtitleLabel, TableItemDelegate, TableView, TextEdit, Theme, setCustomStyleSheet, setTheme, setThemeColor
 from qfluentwidgets.common.router import qrouter
 
 from .api import ApiClient, ApiError
@@ -1399,8 +1399,16 @@ class JobsPage(QWidget):
         layout.addLayout(row)
         filters = QHBoxLayout()
         filters.addWidget(BodyLabel("เรื่อง", self))
-        self.story_filter = ComboBox(self)
+        self.story_filter = EditableComboBox(self)
         self.story_filter.setMinimumWidth(240)
+        self.story_filter.setPlaceholderText("ค้นหาหรือเลือกเรื่อง")
+        self.story_completer_model = QStringListModel(self.story_filter)
+        self.story_completer = QCompleter(self.story_completer_model, self.story_filter)
+        self.story_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self.story_completer.setFilterMode(Qt.MatchContains)
+        self.story_completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.story_completer.activated[str].connect(self._select_story_from_search)
+        self.story_filter.setCompleter(self.story_completer)
         self.story_filter.addItem("เลือกเรื่องก่อนแสดงตอน", userData=None)
         self.story_filter.currentIndexChanged.connect(self._story_changed)
         filters.addWidget(self.story_filter, 1)
@@ -1609,6 +1617,7 @@ class JobsPage(QWidget):
             self.story_filter.addItem("เลือกเรื่องก่อนแสดงตอน", userData=None)
             for story in stories:
                 self.story_filter.addItem(story["title"], userData=story["id"])
+            self.story_completer_model.setStringList([story["title"] for story in stories])
             index = self.story_filter.findData(selected) if selected else -1
             self.story_filter.setCurrentIndex(index if index > 0 else (1 if stories else 0))
             self.story_filter.blockSignals(False)
@@ -1621,6 +1630,11 @@ class JobsPage(QWidget):
     def _story_changed(self, _index: int) -> None:
         self.page = 1
         self.load_chapters()
+
+    def _select_story_from_search(self, title: str) -> None:
+        index = self.story_filter.findText(title)
+        if index >= 0:
+            self.story_filter.setCurrentIndex(index)
 
     def _audio_status_changed(self, _index: int) -> None:
         self.page = 1

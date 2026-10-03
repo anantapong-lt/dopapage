@@ -220,12 +220,34 @@ export async function completeTtsJob(
     `
     throw new TtsAgentError('Chapter content changed during rendering', 409)
   }
+  // UTF-16 offsets in the original stored HTML, not duplicated spoken text.
+  const offsets: number[] = []
+  let compact = ''
+  const tokens = /<[^>]*>|&[a-zA-Z0-9#]+;|\s+|[^<&\s]+|[<&]/g
+  for (const match of current.content.matchAll(tokens)) {
+    if (/^(?:<[^>]*>|&[a-zA-Z0-9#]+;|\s+)$/.test(match[0])) continue
+    for (let i = 0; i < match[0].length; i += 1) {
+      offsets.push(match.index! + i)
+      compact += match[0][i]
+    }
+  }
+  let cursor = 0
+  const compactTimeline = timeline.map((entry) => {
+    const text = entry.text.replace(/\s/g, '')
+    const start = compact.indexOf(text, cursor)
+    if (start < 0) throw new TtsAgentError('Audio timeline does not match chapter content', 400)
+    cursor = start + text.length
+    return {
+      start_offset: offsets[start], end_offset: offsets[cursor - 1] + 1,
+      start_seconds: entry.start_seconds, end_seconds: entry.end_seconds,
+    }
+  })
   const upload = await createTtsUploadUrl(userId, jobId, workerId)
   const audioUrl = createPublicAssetUrl(upload.audio_key)
   const supersededAudioKeys = await db.begin(async (transaction) => {
     const [completed] = await transaction<{ chapter_id: string }[]>`
       UPDATE tts_jobs SET status = ${TTS_JOB_STATUS.DONE}, audio_key = ${upload.audio_key}, audio_url = ${audioUrl},
-        duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), audio_timeline = ${JSON.stringify(timeline)}::JSONB, completed_at = NOW(),
+        duration_seconds = ROUND(${durationSeconds}::NUMERIC, 3), audio_timeline = ${JSON.stringify(compactTimeline)}::JSONB, completed_at = NOW(),
         lease_expires_at = NULL, updated_at = NOW()
       WHERE id = ${jobId} AND requested_by = ${userId} AND worker_id = ${workerId}::UUID
         AND status = ${TTS_JOB_STATUS.PROCESSING} AND lease_expires_at > NOW()

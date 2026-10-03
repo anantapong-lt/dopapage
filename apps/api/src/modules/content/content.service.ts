@@ -470,7 +470,7 @@ export async function findPublicReaderChapters(
   `
 }
 
-export type AudioTimelineEntry = { text: string; start_seconds: number; end_seconds: number }
+export type AudioTimelineEntry = { text?: string; start_offset?: number; end_offset?: number; start_seconds: number; end_seconds: number }
 
 export async function findNovelChapterContent(chapterId: string): Promise<{
   content: string; audio_url: string | null; audio_timeline: AudioTimelineEntry[]

@@ -89,7 +89,7 @@ const contentSecurityPolicy = [
   "frame-ancestors 'none'",
   "object-src 'none'",
   `img-src 'self' data: blob: https://images.unsplash.com https://lh3.googleusercontent.com${apiOrigin ? ` ${apiOrigin}` : ''}${assetOrigin ? ` ${assetOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}${privateMangaR2Origin ? ` ${privateMangaR2Origin}` : ''}`,
-  `media-src 'self' blob:${apiOrigin ? ` ${apiOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}`,
+  `media-src 'self' blob:${apiOrigin ? ` ${apiOrigin}` : ''}${assetOrigin ? ` ${assetOrigin}` : ''}${publicMediaOrigin ? ` ${publicMediaOrigin}` : ''}`,
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   `script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com${isProduction ? '' : " 'unsafe-eval'"}`,

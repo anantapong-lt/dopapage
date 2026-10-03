@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -24,7 +25,11 @@ def source_snapshot() -> dict[Path, tuple[int, int]]:
 
 def start_app() -> subprocess.Popen[object]:
     print("Starting TTS Agent. Save a Python file to restart it automatically.")
-    return subprocess.Popen([sys.executable, "-m", "readji_tts_agent.app"], cwd=PROJECT_ROOT)
+    environment = os.environ.copy()
+    environment["READJI_TTS_API_URL"] = "http://localhost:4000"
+    existing_python_path = environment.get("PYTHONPATH")
+    environment["PYTHONPATH"] = str(SOURCE_ROOT) if not existing_python_path else os.pathsep.join((str(SOURCE_ROOT), existing_python_path))
+    return subprocess.Popen([sys.executable, "-m", "readji_tts_agent.app"], cwd=PROJECT_ROOT, env=environment)
 
 
 def stop_app(process: subprocess.Popen[object]) -> None:

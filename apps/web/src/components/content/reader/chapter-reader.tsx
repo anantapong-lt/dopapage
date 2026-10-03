@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChapterPurchaseDialog } from '@/components/content/chapter-purchase-dialog'
 import type {
@@ -36,6 +36,19 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   const [readerNavbarVisible, setReaderNavbarVisible] = useState(true)
   const [navigationVisible, setNavigationVisible] = useState(false)
   const [showAudioPlayer, setShowAudioPlayer] = useState(false)
+  const [audioStartTime, setAudioStartTime] = useState(0)
+  const [audioPlaybackRate, setAudioPlaybackRate] = useState(1)
+  const [isAutoReading, setIsAutoReading] = useState(false)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const audioRef = useRef<HTMLAudioElement>(null)
+
+  function seekAudio(time: number) {
+    const audio = audioRef.current
+    if (!audio || !Number.isFinite(time) || time < 0) return
+    audio.currentTime = Number.isFinite(audio.duration) ? Math.min(time, audio.duration) : time
+    setAudioCurrentTime(audio.currentTime)
+    void audio.play().catch(() => setIsAutoReading(false))
+  }
 
   useEffect(() => {
     setSettings(loadReadingSettings())
@@ -109,11 +122,13 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           chapters={chapters}
           showReadingSettings={data.story.type === 'novel'}
           hasAudio={data.story.type === 'novel' && Boolean(data.audio_url)}
-          showingAudioPlayer={showAudioPlayer}
+          audioUrl={data.audio_url}
           settings={settings}
           navbarVisible={readerNavbarVisible}
           onSettingsChange={updateSettings}
-          onAudioPlayerToggle={() => setShowAudioPlayer((current) => !current)}
+          onAudioTimeChange={setAudioCurrentTime}
+          onAudioPlayingChange={setIsAutoReading}
+          audioRef={audioRef}
           onNavigate={navigateToChapter}
         />
 
@@ -133,6 +148,11 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
               audioUrl={data.audio_url}
               audioTimeline={data.audio_timeline}
               showAudioPlayer={showAudioPlayer}
+              initialAudioTime={audioStartTime}
+              initialPlaybackRate={audioPlaybackRate}
+              isAutoReading={isAutoReading}
+              audioCurrentTime={audioCurrentTime}
+              onSeekAudio={seekAudio}
               onBackToContent={() => setShowAudioPlayer(false)}
             />
           )}

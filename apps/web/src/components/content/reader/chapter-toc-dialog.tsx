@@ -1,7 +1,8 @@
 'use client'
 
-import { ListOrdered, LockKeyhole } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ListOrdered, LockKeyhole } from 'lucide-react'
 import { useState } from 'react'
+import { Button } from '@/components/ui/button'
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,15 @@ export function ChapterTocDialog({
   triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
+  const currentIndex = chapters.findIndex((chapter) => chapter.chapter_number === currentChapterNumber)
+  const previousChapter = currentIndex > 0 ? chapters[currentIndex - 1] : null
+  const nextChapter = currentIndex >= 0 && currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null
+
+  function navigate(chapter: PublicReaderChapter | null) {
+    if (!chapter) return
+    setOpen(false)
+    onNavigate(chapter)
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -50,10 +60,7 @@ export function ChapterTocDialog({
               <button
                 key={chapter.id}
                 type="button"
-                onClick={() => {
-                  setOpen(false)
-                  onNavigate(chapter)
-                }}
+                onClick={() => navigate(chapter)}
                 className={cn(
                   'flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-left transition-colors',
                   active ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
@@ -69,6 +76,16 @@ export function ChapterTocDialog({
               </button>
             )
           })}
+        </div>
+        <div className="grid grid-cols-2 gap-2 border-t border-border p-3">
+          <Button type="button" variant="outline" className="gap-1.5" disabled={!previousChapter} onClick={() => navigate(previousChapter)}>
+            <ChevronLeft className="size-4" aria-hidden="true" />
+            ย้อนกลับ
+          </Button>
+          <Button type="button" variant="outline" className="gap-1.5" disabled={!nextChapter} onClick={() => navigate(nextChapter)}>
+            ถัดไป
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
