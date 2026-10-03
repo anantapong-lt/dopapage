@@ -137,7 +137,7 @@ function ContentDisplayPopover({
   if (disabled) {
     return (
       <DisabledIconButton label="ตัวกรองเนื้อหา">
-        <Heart className="size-5" />
+        <Heart className="size-5 fill-[#7c2837] text-[#7c2837]" />
       </DisabledIconButton>
     )
   }
@@ -151,7 +151,7 @@ function ContentDisplayPopover({
           title="ปรับการแสดงผลเนื้อหา"
           className="readji-icon-button text-[#7c2837] hover:text-[#a0354b]"
         >
-          <Heart className="size-5 fill-current" />
+          <Heart className="size-5 fill-[#7c2837] text-[#7c2837]" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" sideOffset={12} className="w-[18rem] rounded-[1.5rem] border-border/60 bg-card/95 p-4 shadow-xl backdrop-blur-xl">
