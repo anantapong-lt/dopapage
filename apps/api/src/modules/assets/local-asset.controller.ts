@@ -2,7 +2,12 @@ import { status } from 'elysia'
 import { findPublicLocalAsset, findSignedLocalAsset, writeSignedTtsAsset } from './local-asset.service'
 
 export async function publicLocalAssetResponse(key: string) {
-  return (await findPublicLocalAsset(key)) ?? status(404, { message: 'Asset not found' })
+  const file = await findPublicLocalAsset(key)
+  if (!file) return status(404, { message: 'Asset not found' })
+  if (key.startsWith('local/site/logos/') || key.startsWith('local/site/favicons/')) {
+    return new Response(file, { headers: { 'Content-Type': file.type, 'Cache-Control': 'public, max-age=31536000, immutable' } })
+  }
+  return file
 }
 
 export async function privateLocalAssetResponse(key: string, expires: string, signature: string) {

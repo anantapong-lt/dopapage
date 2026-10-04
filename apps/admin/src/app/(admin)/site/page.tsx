@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Plus, Save, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { useSiteBranding } from '@readji/shared/src/site-branding'
+import { ImagePlus, LoaderCircle, Plus, Save, Trash2, UploadCloud, X } from 'lucide-react'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -14,7 +15,9 @@ import { toast } from 'sonner'
 
 type Package = { amount: string; bonus: string }
 interface Config {
-  site: { name: string; tagline: string; description: string; site_url: string; coin_name: string }
+  site: { name: string; tagline: string; description: string; site_url: string; coin_name: string; logo_key?: string; favicon_key?: string }
+  logo_url: string | null
+  favicon_url: string | null
   topup: { packages: Package[] }
   withdrawal: { commission_percent: string }
   features: Record<'registration' | 'writer_application' | 'comments' | 'topup' | 'withdrawals', boolean>
@@ -29,8 +32,139 @@ const featureLabels: Record<keyof Config['features'], string> = {
   withdrawals: 'เปิดระบบถอนเงิน',
 }
 
+function BrandingImageDropzone({ kind, file, savedUrl, saving, onChange }: {
+  kind: 'logo' | 'favicon'
+  file: File | null
+  savedUrl: string | null
+  saving: boolean
+  onChange: (file: File | null) => void
+}) {
+  const label = kind === 'logo' ? 'Logo' : 'Favicon'
+  const id = `site-${kind}`
+  const fileInput = useRef<HTMLInputElement>(null)
+  const dragDepth = useRef(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!file) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  function selectFile(selected: File | undefined) {
+    if (!selected || saving) return
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(selected.type) || selected.size > 5 * 1024 * 1024) {
+      toast.error('กรุณาเลือกไฟล์ PNG, JPG หรือ WebP ขนาดไม่เกิน 5 MB')
+      return
+    }
+    onChange(selected)
+  }
+
+  const imageUrl = preview || savedUrl
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Label htmlFor={`${id}-trigger`}>{kind === 'logo' ? 'Logo เว็บไซต์' : 'Favicon — ไอคอนบนแท็บเบราว์เซอร์'}</Label>
+        {file && <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">รอบันทึก</span>}
+      </div>
+      <div
+        className="w-full min-w-0"
+        onDragEnter={(event) => {
+          event.preventDefault()
+          if (saving || !event.dataTransfer.types.includes('Files')) return
+          dragDepth.current += 1
+          setIsDragging(true)
+        }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          event.dataTransfer.dropEffect = saving ? 'none' : 'copy'
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault()
+          dragDepth.current = Math.max(0, dragDepth.current - 1)
+          if (dragDepth.current === 0) setIsDragging(false)
+        }}
+        onDrop={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          dragDepth.current = 0
+          setIsDragging(false)
+          if (saving) return
+          if (event.dataTransfer.files.length !== 1) {
+            toast.error(`กรุณาเลือก ${label} ครั้งละ 1 รูป`)
+            return
+          }
+          selectFile(event.dataTransfer.files[0])
+        }}
+      >
+        <Input ref={fileInput} id={id} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" aria-label={`เลือกไฟล์ ${label}`} onChange={(event) => { selectFile(event.target.files?.[0]); event.target.value = '' }} />
+        <Button
+          id={`${id}-trigger`}
+          type="button"
+          variant="outline"
+          disabled={saving}
+          aria-label={`${imageUrl ? 'เปลี่ยนรูป' : 'เลือกไฟล์'} ${label}`}
+          aria-describedby={`${id}-help`}
+          aria-busy={saving}
+          onClick={() => fileInput.current?.click()}
+          className={`group h-auto min-h-56 w-full flex-col gap-5 whitespace-normal rounded-2xl border-2 border-dashed px-3 py-7 text-center shadow-none transition-colors sm:px-5 xl:flex-row xl:px-8 xl:text-left ${isDragging ? 'border-primary bg-primary/10 ring-4 ring-primary/10 hover:bg-primary/10' : 'border-border bg-muted/20 hover:border-primary/50 hover:bg-primary/5'}`}
+        >
+          <span className="pointer-events-none flex size-24 max-w-full shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/70 bg-background p-4 shadow-sm sm:size-36">
+            {imageUrl ? (
+              <img src={imageUrl} alt={`ตัวอย่าง ${label}`} className="max-h-full max-w-full object-contain" draggable={false} />
+            ) : (
+              <span className="flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform group-hover:scale-105"><ImagePlus className="size-8" /></span>
+            )}
+          </span>
+          <span className="pointer-events-none flex min-w-0 flex-1 flex-col items-center gap-2 xl:items-start">
+            <span className="text-base font-semibold">{saving ? 'กำลังบันทึก...' : isDragging ? `วางรูปเพื่อเลือก ${label}` : `ลากรูป ${label} มาวางที่นี่`}</span>
+            <span className="text-sm font-normal text-muted-foreground">หรือคลิกเพื่อ{imageUrl ? 'เปลี่ยนรูปจากเครื่อง' : 'เลือกไฟล์จากเครื่อง'}</span>
+            <span className="mt-1 inline-flex items-center gap-2 rounded-lg border bg-background px-3 py-2 text-sm shadow-sm">
+              {saving ? <LoaderCircle className="size-4 animate-spin" /> : <UploadCloud className="size-4 text-primary" />}
+              {saving ? 'กำลังบันทึก' : imageUrl ? `เปลี่ยนรูป ${label}` : 'เลือกไฟล์รูปภาพ'}
+            </span>
+            <span className="mt-1 text-xs font-normal text-muted-foreground">PNG, JPG หรือ WebP · ไม่เกิน 5 MB</span>
+          </span>
+        </Button>
+        {file && (
+          <div className="mt-3 flex min-w-0 items-center gap-3 rounded-xl border bg-muted/20 px-3 py-2.5" aria-live="polite">
+            <ImagePlus className="size-5 shrink-0 text-primary" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium" title={file.name}>{file.name}</p>
+              <p className="text-xs text-muted-foreground">{file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / (1024 * 1024)).toFixed(2)} MB`}</p>
+            </div>
+            <Button type="button" variant="ghost" size="icon" aria-label={`ยกเลิกรูป ${label} ที่เลือก`} title="ยกเลิกรูปที่เลือก" onClick={() => onChange(null)}><X className="size-4" /></Button>
+          </div>
+        )}
+        {kind === 'favicon' && imageUrl && (
+          <div className="mt-3 rounded-xl border bg-muted/30 px-4 pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">ตัวอย่างบนแท็บเบราว์เซอร์</p>
+            <div className="flex w-56 max-w-full items-center gap-2 rounded-t-lg border border-b-0 bg-background px-3 py-2 text-xs">
+              <img src={imageUrl} alt="" className="size-4 shrink-0 object-contain" />
+              <span className="min-w-0 flex-1 truncate">หน้าแรก | เว็บไซต์</span>
+              <X className="size-3 text-muted-foreground" aria-hidden="true" />
+            </div>
+          </div>
+        )}
+      </div>
+      <p id={`${id}-help`} className="text-xs leading-relaxed text-muted-foreground">
+        {kind === 'favicon' ? 'แนะนำรูปสี่เหลี่ยมจัตุรัส พื้นหลังโปร่งใส ระบบจะปรับเป็น PNG ขนาด 48 × 48 พิกเซลสำหรับแท็บเบราว์เซอร์' : 'ใช้ภาพนิ่ง แนะนำพื้นหลังโปร่งใส'}
+        {' '}รูปใหม่จะใช้งานเมื่อกด “บันทึกทั้งหมด”
+      </p>
+    </div>
+  )
+}
+
 export default function SiteSettingsPage() {
   const { accessToken } = useAdminAuth()
+  const { updateBranding } = useSiteBranding()
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [faviconFile, setFaviconFile] = useState<File | null>(null)
   const [config, setConfig] = useState<Config | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -65,17 +199,44 @@ export default function SiteSettingsPage() {
     )
 
   async function save() {
-    if (!accessToken || !config) return
+    if (!accessToken || !config || saving) return
     setSaving(true)
     setMessage(null)
     try {
+      const { site, topup, withdrawal, features } = config
+      const payload = { site: { ...site }, topup, withdrawal, features }
+      for (const [kind, file] of [['logo', logoFile], ['favicon', faviconFile]] as const) {
+        if (!file) continue
+        const label = kind === 'logo' ? 'Logo' : 'Favicon'
+        const form = new FormData()
+        form.append(kind, file)
+        const upload = await fetch(`${apiUrl}/admin/site/${kind}`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          credentials: 'include',
+          body: form,
+        })
+        if (!upload.ok) {
+          const error = await upload.json().catch(() => null)
+          throw new Error(upload.status === 400 && typeof error?.message === 'string'
+            ? error.message : `ไม่สามารถอัปโหลด ${label} ได้ กรุณาใช้ภาพนิ่ง PNG, JPG หรือ WebP ขนาดไม่เกิน 5 MB`)
+        }
+        const key = kind === 'logo' ? 'logo_key' : 'favicon_key'
+        const uploaded = await upload.json() as Record<typeof key, string>
+        payload.site[key] = uploaded[key]
+      }
       const response = await fetch(`${apiUrl}/admin/site`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
         credentials: 'include',
-        body: JSON.stringify(config),
+        body: JSON.stringify(payload),
       })
       if (!response.ok) throw new Error('ไม่สามารถบันทึกการตั้งค่าเว็บไซต์ได้')
+      const saved = await response.json() as Config
+      setConfig(saved)
+      updateBranding({ logo_url: saved.logo_url, favicon_url: saved.favicon_url })
+      setLogoFile(null)
+      setFaviconFile(null)
       toast.success('บันทึกการตั้งค่าเรียบร้อยแล้ว')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'ไม่สามารถบันทึกการตั้งค่าได้')
@@ -134,7 +295,12 @@ export default function SiteSettingsPage() {
           <CardTitle>ข้อมูลเว็บไซต์</CardTitle>
           <CardDescription>ข้อมูลที่ใช้แสดงบนเว็บไซต์และลิงก์ระบบ</CardDescription>
         </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
+          <CardContent>
+          <fieldset disabled={saving} className="grid min-w-0 gap-4 md:grid-cols-3">
+          <div className="grid min-w-0 grid-cols-2 items-start gap-3 sm:gap-6 md:col-span-3">
+            <BrandingImageDropzone kind="logo" file={logoFile} savedUrl={config.logo_url} saving={saving} onChange={setLogoFile} />
+            <BrandingImageDropzone kind="favicon" file={faviconFile} savedUrl={config.favicon_url} saving={saving} onChange={setFaviconFile} />
+          </div>
           {(
             [
               ['name', 'ชื่อเว็บไซต์'],
@@ -155,6 +321,7 @@ export default function SiteSettingsPage() {
               onChange={(event) => updateSite('description', event.target.value)}
             />
           </div>
+          </fieldset>
         </CardContent>
       </Card>
       <Card>

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { SiteBrandingProvider } from '@readji/shared/src/site-branding'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { SITE_CONFIG } from '@/site.config'
@@ -47,10 +48,12 @@ export default function RootLayout({
   return (
     <html lang="th" suppressHydrationWarning>
       <body className={`${notoSansThai.variable} ${notoSerifThai.variable} ${sarabun.variable} ${prompt.variable} font-sans antialiased`}>
+        <SiteBrandingProvider apiUrl={process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}>
         <AuthProvider>
           {children}
           <Toaster />
         </AuthProvider>
+        </SiteBrandingProvider>
       </body>
     </html>
   )

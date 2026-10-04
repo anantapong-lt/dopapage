@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { SiteLogo } from '@readji/shared/src/site-branding'
 import { Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { TurnstileWidget } from '@/components/turnstile-widget'
@@ -43,9 +44,9 @@ export default function AdminLoginPage() {
     <main className="grid min-h-screen place-items-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="justify-items-center px-6 pt-8 text-center">
-          <div className="mb-2 grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground">
+          <SiteLogo className="mb-2 h-16 w-40" fallback={<div className="mb-2 grid size-11 place-items-center rounded-xl bg-primary text-primary-foreground">
             <ShieldCheck className="size-5" />
-          </div>
+          </div>} />
           <CardTitle className="text-2xl">เข้าสู่ระบบ</CardTitle>
           <CardDescription>Dopapage Admin Control Center</CardDescription>
         </CardHeader>

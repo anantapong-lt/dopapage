@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { SiteLogo } from '@readji/shared/src/site-branding'
 import { SITE_CONFIG } from '@/site.config'
 
 export function Footer(_: { registrationEnabled: boolean }) {
@@ -10,7 +11,7 @@ export function Footer(_: { registrationEnabled: boolean }) {
         <div className="grid gap-10 sm:grid-cols-2">
           <div>
             <Link href="/" className="text-2xl font-extrabold tracking-[-0.04em] text-[#F1F1EF] transition-opacity hover:opacity-80">
-              Dopapage
+              <SiteLogo className="h-12 w-44" fallback="Dopapage" />
             </Link>
             <p className="mt-3 max-w-sm text-sm text-[#F1F1EF]/70">{SITE_CONFIG.description}</p>
           </div>

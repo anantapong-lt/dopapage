@@ -7,8 +7,8 @@ import { env } from '../../config/env'
 
 const LOCAL_KEY_PREFIX = 'local/'
 const ASSETS_DIRECTORY = resolve(import.meta.dir, '../../../assets')
-const LOCAL_KEY_PATTERN = /^local\/(?:stories\/(?:covers\/[a-f0-9-]+\.webp|chapters\/[a-zA-Z0-9-]+\/\d+(?:\.\d+)?\/[a-f0-9-]+(?:-\d+)?\.(?:webp|mp3))|profiles\/(?:covers|avatars)\/[a-f0-9-]+\.webp|withdrawal-proofs\/[a-f0-9-]+\/[a-f0-9-]+\.(?:pdf|png|jpg))$/
-const PUBLIC_LOCAL_KEY_PATTERN = /^local\/(?:stories\/(?:covers\/[a-f0-9-]+\.webp|chapters\/[a-zA-Z0-9-]+\/\d+(?:\.\d+)?\/[a-f0-9-]+-\d+\.mp3)|profiles\/(?:covers|avatars)\/[a-f0-9-]+\.webp)$/
+const LOCAL_KEY_PATTERN = /^local\/(?:stories\/(?:covers\/[a-f0-9-]+\.webp|chapters\/[a-zA-Z0-9-]+\/\d+(?:\.\d+)?\/[a-f0-9-]+(?:-\d+)?\.(?:webp|mp3))|profiles\/(?:covers|avatars)\/[a-f0-9-]+\.webp|withdrawal-proofs\/[a-f0-9-]+\/[a-f0-9-]+\.(?:pdf|png|jpg)|site\/logos\/[a-f0-9-]+\.webp|site\/favicons\/[a-f0-9-]+\.png)$/
+const PUBLIC_LOCAL_KEY_PATTERN = /^local\/(?:stories\/(?:covers\/[a-f0-9-]+\.webp|chapters\/[a-zA-Z0-9-]+\/\d+(?:\.\d+)?\/[a-f0-9-]+-\d+\.mp3)|profiles\/(?:covers|avatars)\/[a-f0-9-]+\.webp|site\/logos\/[a-f0-9-]+\.webp|site\/favicons\/[a-f0-9-]+\.png)$/
 
 export type StorageBucket = 'public' | 'manga' | 'transfer-proof'
 

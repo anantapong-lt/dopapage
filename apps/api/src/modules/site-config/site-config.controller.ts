@@ -1,5 +1,14 @@
 import { getPublicTopupConfig } from '../admin-site/admin-site.service'
-import { getPublicFeatureConfig } from './site-config.service'
+import { getPublicFeatureConfig, getPublicBrandingConfig } from './site-config.service'
+
+export async function loadPublicBrandingConfig() {
+  try {
+    return Response.json(await getPublicBrandingConfig(), { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    console.error('Unable to load public branding config', error)
+    return Response.json({ message: 'ไม่สามารถโหลด Logo เว็บไซต์ได้' }, { status: 500 })
+  }
+}
 
 export async function loadPublicTopupConfig() {
   try {

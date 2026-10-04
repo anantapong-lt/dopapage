@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { SiteLogo } from '@readji/shared/src/site-branding'
 import { useState } from 'react'
 import {
   Banknote,
@@ -82,9 +83,9 @@ export function Sidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+              <SiteLogo className="size-8 shrink-0" fallback={<div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 <ShieldCheck className="size-4" />
-              </div>
+              </div>} />
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Dopapage Admin</span>
                 <span className="truncate text-xs text-sidebar-foreground/70">CONTROL CENTER</span>

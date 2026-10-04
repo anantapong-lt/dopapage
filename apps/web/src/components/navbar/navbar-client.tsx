@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import { SiteLogo } from '@readji/shared/src/site-branding'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Bell,
@@ -468,11 +469,11 @@ export function NavbarClient({
           <div className="flex h-[4.35rem] items-center justify-between">
             <div className="flex min-w-0 items-center gap-5 md:gap-7">
               <Link href="/" className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80">
-                <span
+                <SiteLogo className="aspect-[1185/321] h-9 -translate-y-1 shrink-0" fallback={<span
                   role="img"
                   aria-label="Dopapage"
                   className="aspect-[1185/321] h-9 -translate-y-1 bg-gradient-to-r from-[#54252b] to-[#b56871] [mask-image:url(/readji-wordmark.png)] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain] [-webkit-mask-image:url(/readji-wordmark.png)] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain]"
-                />
+                />} />
               </Link>
               <DesktopNav />
             </div>
@@ -580,11 +581,11 @@ export function NavbarClient({
           />
           <aside className="absolute top-0 right-0 flex h-[100dvh] w-[min(22rem,calc(100vw-1rem))] flex-col overflow-hidden border-l border-border bg-card shadow-[-18px_0_48px_-28px_rgb(45_29_32_/_0.62)]">
             <div className="flex h-[4.35rem] shrink-0 items-center justify-between border-b border-border px-5">
-              <span
+              <SiteLogo className="aspect-[1185/321] h-7 -translate-y-1 shrink-0" fallback={<span
                 role="img"
                 aria-label="Dopapage"
                 className="aspect-[1185/321] h-7 -translate-y-1 bg-gradient-to-r from-[#54252b] to-[#b56871] [mask-image:url(/readji-wordmark.png)] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain] [-webkit-mask-image:url(/readji-wordmark.png)] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain]"
-              />
+              />} />
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}

@@ -12,6 +12,8 @@ export const adminSiteConfigBodySchema = t.Object({
     description: t.String({ maxLength: 1000 }),
     site_url: t.String({ format: 'uri', maxLength: 500 }),
     coin_name: t.String({ minLength: 1, maxLength: 50 }),
+    logo_key: t.Optional(t.String({ pattern: '^(?:local/)?site/logos/[a-f0-9-]+\\.webp$', maxLength: 100 })),
+    favicon_key: t.Optional(t.String({ pattern: '^(?:local/)?site/favicons/[a-f0-9-]+\\.png$', maxLength: 100 })),
   }),
   topup: t.Object({
     packages: t.Array(topupPackageSchema, { maxItems: 30 }),
@@ -27,3 +29,11 @@ export const adminSiteConfigBodySchema = t.Object({
     withdrawals: t.Boolean(),
   }),
 }, { additionalProperties: false })
+
+export const adminSiteLogoBodySchema = t.Object({
+  logo: t.File({ type: ['image/png', 'image/jpeg', 'image/webp'], maxSize: 5 * 1024 * 1024 }),
+})
+
+export const adminSiteFaviconBodySchema = t.Object({
+  favicon: t.File({ type: ['image/png', 'image/jpeg', 'image/webp'], maxSize: 5 * 1024 * 1024 }),
+})
