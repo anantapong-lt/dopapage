@@ -40,27 +40,34 @@ python -m pip install ".[packaging]"
 .\packaging\build-installer.ps1
 ```
 
-The completed installer is written to
-`dist/installer/Readji-TTS-Agent-Setup-<version>.exe`. It contains only a small
-bootstrap and installs for the current Windows user under `%LOCALAPPDATA%`.
-The separately hosted runtime archive and its `runtime-manifest.json` are
-written to `dist/release/`. Upload both to Google Drive and replace the
-`runtime.url` placeholder in the manifest with the archive's public download
-link. Then upload the edited manifest and put its public link in:
+The completed installer is `dist/installer/Dopapage-Setup.exe`. It contains the
+bootstrap, while `dist/release/` contains the separately hosted runtime archive,
+an optional patch from the installed version, and `runtime-manifest.json`.
 
-`%LOCALAPPDATA%\Readji\TTS Agent\bootstrap-config.json`
+For the first release with patch support, build the new bootstrap, publish the
+installer and runtime together, then install the new bootstrap once:
 
-```json
-{
-  "manifest_url": "https://drive.google.com/file/d/FILE_ID/view"
-}
+```powershell
+.\packaging\build-installer.ps1
+.\packaging\publish-runtime.ps1 -SkipBuild -PublishInstaller
 ```
 
-On first launch the bootstrap downloads the runtime, verifies its SHA-256, and
-starts the agent. On later launches it reads the manifest again and installs a
-new runtime version when available; an already installed runtime still starts
-if Drive is temporarily unavailable. The model weights download once from
-Hugging Face into `%LOCALAPPDATA%\Readji\TTS Agent\cache\huggingface`.
+For later Agent code releases, increase the version in `pyproject.toml` and run
+only `.\packaging\publish-runtime.ps1`. It builds the GUI and Worker, merges
+identical dependencies into one `_internal` directory, creates the full runtime
+and a patch from the installed version, uploads both to the VPS, verifies their
+checksums and public URLs, and publishes the manifest last. The installer is
+rebuilt only when the bootstrap or installer itself changes. If the build
+machine does not have the previous runtime installed, pass
+`-PreviousRuntimeDirectory` with that version's unpacked directory.
 
-The package keeps the current API default of `http://localhost:4000`; change it
-at launch with `READJI_TTS_API_URL` when a production endpoint is available.
+The bootstrap checks the manifest on every launch. With a matching patch it
+reuses verified files from the current runtime and downloads only changed files;
+otherwise it downloads the full runtime archive. It stages and verifies the
+new version before switching to it. An installed runtime still starts if the
+manifest is temporarily unavailable. Launch through the installed Dopapage
+shortcut; running `runtime\<version>\Dopapage.exe` directly skips the updater.
+Model weights download separately from Hugging Face when missing.
+
+Development launches default to `http://localhost:4000`; the packaged bootstrap
+passes the production API URL from `bootstrap-config.json` to the Agent.

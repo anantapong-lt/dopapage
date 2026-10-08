@@ -393,7 +393,9 @@ class VoxCpmRenderer:
             # The GUI binary is built with PyInstaller --windowed, which makes
             # stdout unavailable.  Use the separately packaged console worker
             # so its JSON IPC stream remains connected to this process.
-            worker = Path(sys.executable).parent / "worker" / "Dopapage Worker.exe"
+            worker = Path(sys.executable).parent / "Dopapage Worker.exe"
+            if not worker.is_file():
+                worker = Path(sys.executable).parent / "worker" / "Dopapage Worker.exe"
             if not worker.is_file():
                 raise RenderError("ไม่พบตัวประมวลผลเสียงของแอป กรุณาติดตั้ง TTS Agent ใหม่")
             command = [str(worker), *worker_arguments]

@@ -259,6 +259,112 @@ def validate_runtime(manifest: dict[str, Any]) -> tuple[str, str, str]:
     return version, url, digest.lower()
 
 
+def validate_patch(manifest: dict[str, Any], current_version: str) -> tuple[dict[str, tuple[int, str]], str, str] | None:
+    runtime = manifest.get("runtime")
+    if not isinstance(runtime, dict):
+        return None
+    raw_files = runtime.get("files")
+    raw_patches = runtime.get("patches")
+    if not isinstance(raw_files, list) or not isinstance(raw_patches, list):
+        return None
+    files: dict[str, tuple[int, str]] = {}
+    for entry in raw_files:
+        if not isinstance(entry, dict):
+            return None
+        path, size, digest = entry.get("path"), entry.get("size"), entry.get("sha256")
+        if (not isinstance(path, str) or not path or "\\" in path or ":" in path or "\x00" in path
+                or any(part in ("", ".", "..") for part in path.split("/")) or path in files
+                or not isinstance(size, int) or isinstance(size, bool) or size < 0
+                or not isinstance(digest, str) or len(digest) != 64
+                or any(char not in "0123456789abcdefABCDEF" for char in digest)):
+            return None
+        files[path] = (size, digest.lower())
+    if "Dopapage.exe" not in files or "Dopapage Worker.exe" not in files:
+        return None
+    for patch in raw_patches:
+        if not isinstance(patch, dict) or patch.get("from_version") != current_version:
+            continue
+        url, digest = patch.get("url"), patch.get("sha256")
+        if (isinstance(url, str) and url and isinstance(digest, str) and len(digest) == 64
+                and all(char in "0123456789abcdefABCDEF" for char in digest)):
+            return files, url, digest.lower()
+    return None
+
+
+def _verified_file_hash(path: Path, cancelled: Event) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        while block := source.read(CHUNK_SIZE):
+            if cancelled.is_set():
+                raise BootstrapError("ยกเลิกการติดตั้งแล้ว")
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _link_or_copy(source: Path, destination: Path) -> None:
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
+
+
+def install_patch(
+    archive: Path,
+    current: Path,
+    destination: Path,
+    files: dict[str, tuple[int, str]],
+    progress: Callable[[str, int, int], None],
+    cancelled: Event,
+) -> None:
+    staging = destination.with_name(f"{destination.name}.installing")
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir(parents=True, exist_ok=True)
+    total = sum(size for size, _ in files.values())
+    completed = 0
+    staged_hashes: dict[str, Path] = {}
+    try:
+        with zipfile.ZipFile(archive) as package:
+            available = set(package.namelist())
+            for name, (size, expected_hash) in files.items():
+                if cancelled.is_set():
+                    raise BootstrapError("ยกเลิกการติดตั้งแล้ว")
+                target = (staging / name).resolve()
+                if not target.is_relative_to(staging.resolve()):
+                    raise BootstrapError("runtime manifest มีพาธที่ไม่ปลอดภัย")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shared = staged_hashes.get(expected_hash)
+                old = current / name
+                if shared is not None:
+                    _link_or_copy(shared, target)
+                elif (old.is_file() and old.stat().st_size == size
+                      and _verified_file_hash(old, cancelled) == expected_hash):
+                    _link_or_copy(old, target)
+                else:
+                    if name not in available:
+                        raise BootstrapError(f"runtime patch ไม่มีไฟล์ {name}")
+                    digest = hashlib.sha256()
+                    written = 0
+                    with package.open(name) as source, target.open("wb") as output:
+                        while block := source.read(CHUNK_SIZE):
+                            if cancelled.is_set():
+                                raise BootstrapError("ยกเลิกการติดตั้งแล้ว")
+                            output.write(block)
+                            digest.update(block)
+                            written += len(block)
+                    if written != size or digest.hexdigest() != expected_hash:
+                        raise BootstrapError(f"ตรวจสอบไฟล์อัปเดตไม่ผ่าน: {name}")
+                staged_hashes[expected_hash] = target
+                completed += size
+                progress("กำลังติดตั้ง runtime เวอร์ชันใหม่", completed, total)
+        if not has_complete_runtime(staging):
+            raise BootstrapError("runtime patch ไม่มีไฟล์โปรแกรมหลัก")
+        shutil.rmtree(destination, ignore_errors=True)
+        staging.replace(destination)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+
 def download_runtime(url: str, destination: Path, expected_sha256: str, progress: Callable[[str, int, int], None], cancelled: Event) -> None:
     digest = hashlib.sha256()
     temporary = destination.with_suffix(".part")
@@ -350,11 +456,33 @@ def ensure_runtime(
     target = data_root() / "runtime" / version
     executable = target / "Dopapage.exe"
     if not executable.is_file():
-        with tempfile.TemporaryDirectory(prefix="readji-tts-runtime-") as temporary_directory:
-            archive = Path(temporary_directory) / "runtime.zip"
-            download_runtime(download_url, archive, digest, progress, cancelled)
-            installing("กำลังติดตั้งและตรวจสอบความพร้อมของ runtime")
-            extract_runtime(archive, target, progress, cancelled)
+        patched = False
+        patch = validate_patch(manifest, current.parent.name) if current else None
+        if patch and current:
+            files, patch_url, patch_digest = patch
+            try:
+                with tempfile.TemporaryDirectory(prefix="readji-tts-patch-") as temporary_directory:
+                    archive = Path(temporary_directory) / "patch.zip"
+                    download_runtime(patch_url, archive, patch_digest, progress, cancelled)
+                    installing("กำลังตรวจไฟล์เดิมและติดตั้งเฉพาะไฟล์ที่เปลี่ยน")
+                    install_patch(archive, current.parent, target, files, progress, cancelled)
+                patched = True
+            except Exception:
+                if cancelled.is_set():
+                    raise
+                installing("อัปเดตเฉพาะไฟล์ไม่สำเร็จ กำลังดาวน์โหลด runtime ชุดเต็ม")
+        if not patched:
+            try:
+                with tempfile.TemporaryDirectory(prefix="readji-tts-runtime-") as temporary_directory:
+                    archive = Path(temporary_directory) / "runtime.zip"
+                    download_runtime(download_url, archive, digest, progress, cancelled)
+                    installing("กำลังติดตั้งและตรวจสอบความพร้อมของ runtime")
+                    extract_runtime(archive, target, progress, cancelled)
+            except Exception:
+                if current and not cancelled.is_set():
+                    return current
+                raise
+    if current != executable:
         (data_root() / "runtime-state.json").write_text(json.dumps({"version": version}) + "\n", encoding="utf-8")
         remove_old_runtimes(version)
     return executable

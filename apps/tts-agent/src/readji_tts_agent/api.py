@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from _thread import LockType
 from dataclasses import dataclass, field
+from threading import Lock
 from typing import Any
 from urllib.parse import urlencode
 
 import httpx
+
+from .secure_store import load_refresh_token
 
 
 class ApiError(RuntimeError):
@@ -20,6 +24,7 @@ class ApiClient:
     base_url: str
     access_token: str | None = None
     _http: httpx.Client | None = field(default=None, init=False, repr=False)
+    _refresh_lock: LockType = field(default_factory=Lock, init=False, repr=False)
 
     def __enter__(self):
         self._http = httpx.Client(timeout=30, limits=httpx.Limits(
@@ -36,9 +41,22 @@ class ApiClient:
         return f"{self.base_url.rstrip('/')}{path}"
 
     def _request(self, method: str, path: str, *, json: dict[str, Any] | None = None) -> dict[str, Any]:
-        headers = {"Authorization": f"Bearer {self.access_token}"} if self.access_token else {}
         request = self._http.request if self._http is not None else httpx.request
-        response = request(method, self._url(path), json=json, headers=headers, timeout=30)
+
+        def send(token: str | None) -> httpx.Response:
+            headers = {"Authorization": f"Bearer {token}"} if token else {}
+            return request(method, self._url(path), json=json, headers=headers, timeout=30)
+
+        sent_token = self.access_token
+        response = send(sent_token)
+        if response.status_code == 401 and path.startswith("/writer/tts/"):
+            with self._refresh_lock:
+                if self.access_token == sent_token:
+                    refresh_token = load_refresh_token()
+                    if refresh_token:
+                        self.refresh(refresh_token)
+            if self.access_token != sent_token:
+                response = send(self.access_token)
         if response.is_error:
             try:
                 message = response.json().get("message")

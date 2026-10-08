@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$PythonCommand = "python",
-    [string[]]$PythonArguments = @()
+    [string[]]$PythonArguments = @(),
+    [switch]$RuntimeOnly,
+    [string]$PreviousRuntimeDirectory
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,6 +34,22 @@ if ($pyproject -notmatch '(?m)^version\s*=\s*"([^"]+)"') {
     throw "Could not read the application version from pyproject.toml."
 }
 $version = $Matches[1]
+if (-not $PreviousRuntimeDirectory) {
+    $runtimeState = Join-Path $env:LOCALAPPDATA "Readji\TTS Agent\runtime-state.json"
+    if (Test-Path -LiteralPath $runtimeState -PathType Leaf) {
+        try {
+            $installedVersion = (Get-Content -LiteralPath $runtimeState -Raw | ConvertFrom-Json).version
+        } catch {
+            $installedVersion = $null
+        }
+        if ($installedVersion -match '^[0-9A-Za-z][0-9A-Za-z.-]*$' -and $installedVersion -ne $version) {
+            $installedRuntime = Join-Path $env:LOCALAPPDATA "Readji\TTS Agent\runtime\$installedVersion"
+            if (Test-Path -LiteralPath (Join-Path $installedRuntime "Dopapage.exe") -PathType Leaf) {
+                $PreviousRuntimeDirectory = $installedRuntime
+            }
+        }
+    }
+}
 $tritonMetadataDirectory = & $PythonCommand $PythonArguments -c "import importlib.metadata as metadata; print(metadata.distribution('triton-windows')._path)"
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tritonMetadataDirectory -PathType Container)) {
     throw "Could not locate triton-windows package metadata."
@@ -91,49 +109,77 @@ try {
         throw "PyInstaller worker build failed with exit code $LASTEXITCODE."
     }
 
-    # Keep the standalone dist output runnable too. The GUI resolves its
-    # console worker relative to its own executable, and Inno Setup copies this
-    # complete directory into the installed application folder.
+    # Both executables can use the same _internal directory. Reject conflicting
+    # files rather than silently replacing a dependency needed by either app.
     $applicationOutput = Join-Path $runtimeDistPath "Dopapage"
     $workerOutput = Join-Path $runtimeDistPath "Dopapage Worker"
-    Copy-Item -LiteralPath $workerOutput -Destination (Join-Path $applicationOutput "worker") -Recurse -Force
+    if (Test-Path -LiteralPath (Join-Path $applicationOutput "worker")) {
+        throw "The GUI build contains a stale worker directory. Clean the runtime output before packaging."
+    }
+    foreach ($workerFile in (Get-ChildItem -LiteralPath $workerOutput -Recurse -File)) {
+        $relativePath = $workerFile.FullName.Substring($workerOutput.Length + 1)
+        $destination = Join-Path $applicationOutput $relativePath
+        if (Test-Path -LiteralPath $destination) {
+            $existing = Get-Item -LiteralPath $destination
+            if ($existing.Length -eq $workerFile.Length -and
+                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -eq
+                (Get-FileHash -LiteralPath $workerFile.FullName -Algorithm SHA256).Hash) {
+                continue
+            }
+            if ($relativePath -eq "_internal\base_library.zip") {
+                # PyInstaller may write different ZIP metadata for identical
+                # standard-library entries. Compare their extracted bytes.
+                $compareZip = "import sys,zipfile,hashlib; a=zipfile.ZipFile(sys.argv[1]); b=zipfile.ZipFile(sys.argv[2]); names=set(a.namelist()); sys.exit(0 if names==set(b.namelist()) and all(hashlib.sha256(a.read(n)).digest()==hashlib.sha256(b.read(n)).digest() for n in names) else 1)"
+                & $PythonCommand $PythonArguments -c $compareZip $destination $workerFile.FullName
+                if ($LASTEXITCODE -eq 0) {
+                    continue
+                }
+            }
+            throw "GUI and Worker dependencies differ at $relativePath; refusing to merge them."
+        }
+        New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force | Out-Null
+        Copy-Item -LiteralPath $workerFile.FullName -Destination $destination
+    }
 
-    & $PythonCommand $PythonArguments $runtimePackager `
-        --runtime-directory $applicationOutput `
-        --version $version `
-        --output-directory $releasePath
+    $packageArguments = @($runtimePackager, "--runtime-directory", $applicationOutput, "--version", $version, "--output-directory", $releasePath)
+    if ($PreviousRuntimeDirectory) {
+        $packageArguments += @("--previous-runtime-directory", $PreviousRuntimeDirectory)
+    }
+    & $PythonCommand $PythonArguments @packageArguments
     if ($LASTEXITCODE -ne 0) {
         throw "Runtime package creation failed with exit code $LASTEXITCODE."
     }
 
-    # The installer carries only this bootstrap. It downloads the GPU runtime
-    # from the separately hosted manifest at first launch.
-    & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --windowed `
-        --name "Dopapage" `
-        --paths "src" `
-        --add-data "$bootstrapConfig;." `
-        --distpath $bootstrapDistPath `
-        --workpath $workPath `
-        --specpath $workPath `
-        $bootstrapEntrypoint
-    if ($LASTEXITCODE -ne 0) {
-        throw "Bootstrap PyInstaller build failed with exit code $LASTEXITCODE."
-    }
-
-    $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
-    $isccPath = $iscc.Source
-    if (-not $isccPath) {
-        $userInstalledIscc = Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"
-        if (Test-Path -LiteralPath $userInstalledIscc -PathType Leaf) {
-            $isccPath = $userInstalledIscc
+    if (-not $RuntimeOnly) {
+        # The installer carries only this bootstrap. It downloads the GPU runtime
+        # from the separately hosted manifest at first launch.
+        & $PythonCommand $PythonArguments -m PyInstaller --noconfirm --clean --windowed `
+            --name "Dopapage" `
+            --paths "src" `
+            --add-data "$bootstrapConfig;." `
+            --distpath $bootstrapDistPath `
+            --workpath $workPath `
+            --specpath $workPath `
+            $bootstrapEntrypoint
+        if ($LASTEXITCODE -ne 0) {
+            throw "Bootstrap PyInstaller build failed with exit code $LASTEXITCODE."
         }
-    }
-    if (-not $isccPath) {
-        throw "Inno Setup 6 is required. Install it, then run this script again."
-    }
-    & $isccPath "/DMyAppVersion=$version" (Join-Path $PSScriptRoot "installer.iss")
-    if ($LASTEXITCODE -ne 0) {
-        throw "Inno Setup failed with exit code $LASTEXITCODE."
+
+        $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+        $isccPath = $iscc.Source
+        if (-not $isccPath) {
+            $userInstalledIscc = Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"
+            if (Test-Path -LiteralPath $userInstalledIscc -PathType Leaf) {
+                $isccPath = $userInstalledIscc
+            }
+        }
+        if (-not $isccPath) {
+            throw "Inno Setup 6 is required. Install it, then run this script again."
+        }
+        & $isccPath "/DMyAppVersion=$version" (Join-Path $PSScriptRoot "installer.iss")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup failed with exit code $LASTEXITCODE."
+        }
     }
 }
 finally {
