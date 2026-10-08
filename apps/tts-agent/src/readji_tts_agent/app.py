@@ -738,8 +738,8 @@ class LoginPage(QWidget):
         self.login_thread.start()
 
     def _login_succeeded(self, client: ApiClient, refresh_token: str, display_name: str) -> None:
-        save_refresh_token(refresh_token)
         try:
+            save_refresh_token(refresh_token)
             if self.remember_login.isChecked():
                 save_login_credentials(DEFAULT_API_URL, self.email.text().strip(), self.password.text())
             else:

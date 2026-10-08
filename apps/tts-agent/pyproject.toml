@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "readji-tts-agent"
-version = "0.2.2"
+version = "0.2.3"
 description = "Windows TTS renderer for Readji writers"
 requires-python = ">=3.10,<3.13"
 dependencies = [
@@ -12,6 +12,7 @@ dependencies = [
   "PySide6-Fluent-Widgets>=1.8,<2",
   "httpx>=0.28,<1",
   "keyring>=25,<26",
+  "pywin32-ctypes>=0.2.2; sys_platform == 'win32'",
   "numpy>=1.26,<3",
   "soundfile>=0.12,<1",
   "triton-windows>=3.6,<3.7; sys_platform == 'win32'",

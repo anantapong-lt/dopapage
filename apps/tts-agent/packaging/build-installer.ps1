@@ -63,6 +63,7 @@ try {
         --collect-all voxcpm `
         --collect-all soundfile `
         --collect-submodules keyring `
+        --collect-all win32ctypes `
         --distpath $runtimeDistPath `
         --workpath $workPath `
         --specpath $workPath `
@@ -79,6 +80,8 @@ try {
         --add-data "$tritonEntryPoints;$tritonMetadataDestination" `
         --collect-all voxcpm `
         --collect-all soundfile `
+        --collect-submodules keyring `
+        --collect-all win32ctypes `
         --distpath $runtimeDistPath `
         --workpath $workPath `
         --specpath $workPath `
