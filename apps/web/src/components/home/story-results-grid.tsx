@@ -24,7 +24,10 @@ function formatUpdatedAt(value: string, renderedAt: number) {
   const elapsedHours = Math.floor(elapsedMinutes / 60)
   if (elapsedHours < 24) return `${elapsedHours} ชั่วโมงที่แล้ว`
 
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium' }).format(new Date(value))
+  return new Intl.DateTimeFormat('th-TH', {
+    dateStyle: 'medium',
+    timeZone: 'Asia/Bangkok',
+  }).format(new Date(value))
 }
 
 function toStoryGridItem(
