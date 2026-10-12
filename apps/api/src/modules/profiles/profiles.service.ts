@@ -491,7 +491,7 @@ export async function updateMyProfile(
   }
   if (input.social_links !== undefined) {
     await db`
-      UPDATE users SET social_links = ${JSON.stringify(socialLinks)}::JSONB, updated_at = NOW()
+      UPDATE users SET social_links = ${JSON.stringify(socialLinks)}::TEXT::JSONB, updated_at = NOW()
       WHERE id = ${userId} AND deleted_at IS NULL
     `
   }

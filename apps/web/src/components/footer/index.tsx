@@ -16,7 +16,7 @@ export function Footer(_: { registrationEnabled: boolean }) {
             <p className="mt-3 max-w-sm text-sm text-[#F1F1EF]/70">{SITE_CONFIG.description}</p>
           </div>
 
-          <div>
+          <div className="sm:justify-self-end">
             <h3 className="mb-4 text-sm font-semibold text-[#F1F1EF]">ช่วยเหลือ</h3>
             <ul className="flex flex-col gap-2.5 text-sm text-[#F1F1EF]/35">
               <li aria-disabled="true" title="ยังไม่เปิดใช้งาน">ติดต่อแอดมิน</li>
