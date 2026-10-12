@@ -67,7 +67,10 @@ export function ReadingSettingsMenu({
           <p className="mb-2 text-xs font-semibold text-muted-foreground">ฟอนต์</p>
           <Select
             value={settings.fontFamily}
-            onValueChange={(fontFamily: ReadingSettings['fontFamily']) => onChange({ ...settings, fontFamily })}
+            onValueChange={(fontFamily) => onChange({
+              ...settings,
+              fontFamily: fontFamily as ReadingSettings['fontFamily'],
+            })}
           >
             <SelectTrigger className="h-10 w-full cursor-pointer bg-background">
               <SelectValue />
