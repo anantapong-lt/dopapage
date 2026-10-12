@@ -8,8 +8,6 @@ from urllib.parse import urlencode
 
 import httpx
 
-from .secure_store import load_refresh_token
-
 
 class ApiError(RuntimeError):
     pass
@@ -23,6 +21,7 @@ class ApiUnauthorizedError(ApiError):
 class ApiClient:
     base_url: str
     access_token: str | None = None
+    refresh_token: str | None = field(default=None, repr=False)
     _http: httpx.Client | None = field(default=None, init=False, repr=False)
     _refresh_lock: LockType = field(default_factory=Lock, init=False, repr=False)
 
@@ -51,10 +50,8 @@ class ApiClient:
         response = send(sent_token)
         if response.status_code == 401 and path.startswith("/writer/tts/"):
             with self._refresh_lock:
-                if self.access_token == sent_token:
-                    refresh_token = load_refresh_token()
-                    if refresh_token:
-                        self.refresh(refresh_token)
+                if self.access_token == sent_token and self.refresh_token:
+                    self.refresh(self.refresh_token)
             if self.access_token != sent_token:
                 response = send(self.access_token)
         if response.is_error:
@@ -71,11 +68,13 @@ class ApiClient:
         result = self._request("POST", "/auth/agent/login", json={
             "email": email, "password": password, "device_name": device_name,
         })
+        self.refresh_token = result["refresh_token"]
         self.access_token = result["access_token"]
         return result
 
     def refresh(self, refresh_token: str) -> dict[str, Any]:
         result = self._request("POST", "/auth/agent/refresh", json={"refresh_token": refresh_token})
+        self.refresh_token = refresh_token
         self.access_token = result["access_token"]
         return result
 

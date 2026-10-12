@@ -1029,7 +1029,11 @@ class RenderThread(QThread):
         # Own the pooled API session until both rendering and uploading stop.
         original_client = self.client
         try:
-            with ApiClient(original_client.base_url, original_client.access_token) as client:
+            with ApiClient(
+                original_client.base_url,
+                original_client.access_token,
+                refresh_token=original_client.refresh_token,
+            ) as client:
                 self.client = client
                 self._run_pipeline()
         except Exception as error:
