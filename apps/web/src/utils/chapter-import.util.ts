@@ -3,6 +3,13 @@ import type { ImportedChapter } from '@/interface/writer-chapter-import.interfac
 
 export const CHAPTER_IMPORT_MAX_BYTES = 100 * 1024 * 1024
 
+let importRowSequence = 0
+
+function createImportRowId(): string {
+  importRowSequence += 1
+  return `chapter-import-${importRowSequence}`
+}
+
 function chapterNameParts(value: string): { chapterNumber: string; title: string } {
   const match = /^\s*(?:ตอนที่\s*)?(\d+(?:\.\d+)?)(?:\s+(.+?))?\s*$/.exec(value)
   return {
@@ -23,7 +30,7 @@ export async function readChapterZip(file: File): Promise<ImportedChapter[]> {
     const filename = entry.name.split(/[\\/]/).pop() ?? entry.name
     const { chapterNumber, title } = chapterNameParts(filename.replace(/\.txt$/i, ''))
     const row: ImportedChapter = {
-      id: crypto.randomUUID(), filename, title,
+      id: createImportRowId(), filename, title,
       chapter_number: chapterNumber,
       price: '', status: 'published', published_at: '', content: '',
     }
@@ -84,7 +91,7 @@ const MANGA_IMAGE_TYPES: Record<string, string> = {
 function mangaZipRow(title: string, images: File[]): ImportedChapter {
   const { chapterNumber, title: chapterTitle } = chapterNameParts(title)
   return {
-    id: crypto.randomUUID(), filename: title, title: chapterTitle,
+    id: createImportRowId(), filename: title, title: chapterTitle,
     chapter_number: chapterNumber,
     price: '', status: 'published', published_at: '', content: '', images,
   }
