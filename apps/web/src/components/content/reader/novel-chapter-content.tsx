@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, Pause, Play, RotateCcw, Volume1, Volume2, Volum
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { ReadingSettings } from '@/lib/reading-settings'
-import { READING_FONTS, READING_THEMES } from '@/lib/reading-settings'
+import { DEFAULT_READING_SETTINGS, READING_FONTS, READING_THEMES } from '@/lib/reading-settings'
 import { ReaderContentSkeleton } from './reader-content-skeleton'
 import { useReaderContentProtection } from './use-reader-content-protection'
 
@@ -270,7 +270,7 @@ export function NovelChapterContent({
     const observer = new ResizeObserver(updateBox)
     observer.observe(root)
     return () => observer.disconnect()
-  }, [hoveredTime, selectedTime, safeContent, settings.fontSize, settings.fontFamily])
+  }, [hoveredTime, selectedTime, safeContent, settings.fontSize, settings.fontFamily, settings.lineHeight])
 
   useEffect(() => {
     setSanitizedContent({
@@ -404,7 +404,7 @@ export function NovelChapterContent({
               fontFamily: READING_FONTS[settings.fontFamily].family,
               fontWeight: READING_FONTS[settings.fontFamily].weight,
               fontSize: settings.fontSize,
-              lineHeight: 2,
+              lineHeight: settings.lineHeight ?? DEFAULT_READING_SETTINGS.lineHeight,
             }}
             dangerouslySetInnerHTML={contentHtml}
           />

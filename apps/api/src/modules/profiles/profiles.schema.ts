@@ -42,6 +42,7 @@ const contentDisplayModeSchema = t.Union([
 
 export const readingSettingsSchema = t.Object({
   fontSize: t.Numeric({ minimum: 16, maximum: 32, multipleOf: 1 }),
+  lineHeight: t.Optional(t.Numeric({ minimum: 1.5, maximum: 3 })),
   fontFamily: t.Union([
     t.Literal('sans'),
     t.Literal('serif'),

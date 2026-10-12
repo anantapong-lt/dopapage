@@ -17,6 +17,7 @@ export interface ContentDisplaySettings {
 
 export interface ReadingSettings {
   fontSize: number
+  lineHeight: number
   fontFamily: ReadingFont
   theme: ReadingTheme
   autoNext: boolean
@@ -27,6 +28,7 @@ export interface ReadingSettings {
 
 export const DEFAULT_READING_SETTINGS: ReadingSettings = {
   fontSize: 18,
+  lineHeight: 2,
   fontFamily: 'sans',
   theme: 'light',
   autoNext: true,

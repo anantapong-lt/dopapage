@@ -79,20 +79,14 @@ export function StoryGrid({
       }
 
       const maximumColumns = Math.max(1, Math.floor((grid.clientWidth + 16) / 176))
-      const itemCount = stories.length
-      const fullRowColumns = Array.from(
-        { length: maximumColumns },
-        (_, index) => maximumColumns - index,
-      ).find((columns) => columns > 1 && itemCount % columns === 0)
-
-      setResultGridColumns(fullRowColumns ?? Math.min(maximumColumns, Math.max(1, itemCount)))
+      setResultGridColumns(maximumColumns)
     }
 
     updateColumns()
     const observer = new ResizeObserver(updateColumns)
     observer.observe(grid)
     return () => observer.disconnect()
-  }, [mobileLayout, stories.length])
+  }, [mobileLayout])
 
   const resultGridColumnsClass = stories.length === 1
     ? 'lg:[grid-template-columns:minmax(10rem,11rem)]'

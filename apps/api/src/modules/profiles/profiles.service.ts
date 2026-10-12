@@ -15,6 +15,7 @@ export interface ProfileSocialLinks {
 
 export interface ReadingSettings {
   fontSize: number
+  lineHeight: number
   fontFamily: 'sans' | 'serif' | 'arial' | 'cordia-new' | 'tf-nopscript' | 'sarabun' | 'noto-serif-thai' | 'prompt' | 'layiji-mahaniyom'
   theme: 'light' | 'sepia' | 'gray' | 'sage' | 'dark'
   autoNext: boolean
@@ -26,6 +27,8 @@ export interface ReadingSettings {
     gl: ContentDisplayMode
   }
 }
+
+export type ReadingSettingsInput = Omit<ReadingSettings, 'lineHeight'> & { lineHeight?: number }
 
 type ContentDisplayMode = 'hide' | 'both' | 'only'
 type TtsVoiceSlot = 'female' | 'young_male' | 'old_male'
@@ -77,6 +80,8 @@ function parseReadingSettings(value: unknown): ReadingSettings | undefined {
 
   return {
     fontSize,
+    lineHeight: typeof settings.lineHeight === 'number' && Number.isFinite(settings.lineHeight)
+      && settings.lineHeight >= 1.5 && settings.lineHeight <= 3 ? settings.lineHeight : 2,
     fontFamily,
     theme,
     autoNext,
@@ -443,12 +448,13 @@ export async function findReadingSettings(userId: string): Promise<ReadingSettin
 
 export async function updateReadingSettings(
   userId: string,
-  settings: ReadingSettings,
+  settings: ReadingSettingsInput,
 ): Promise<ReadingSettings | undefined> {
   const [user] = await db<Array<{ reading_settings: unknown }>>`
     UPDATE users
     SET reading_settings = jsonb_build_object(
       'fontSize', ${settings.fontSize}::INTEGER,
+      'lineHeight', COALESCE(${settings.lineHeight ?? null}::NUMERIC, (reading_settings ->> 'lineHeight')::NUMERIC, 2),
       'fontFamily', ${settings.fontFamily}::TEXT,
       'theme', ${settings.theme}::TEXT,
       'autoNext', ${settings.autoNext}::BOOLEAN,

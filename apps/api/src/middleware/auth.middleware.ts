@@ -4,7 +4,7 @@ import { env } from '../config/env'
 import type { UserRole } from '../models/user.model'
 import { findActiveUserById, validateAuthSession } from '../modules/auth/auth.service'
 
-const REFRESH_COOKIE_NAME = env.NODE_ENV === 'production' ? '__Host-refresh_token' : 'refresh_token'
+const REFRESH_COOKIE_NAME = env.COOKIE_SECURE ? '__Host-refresh_token' : 'refresh_token'
 
 function bearerToken(authorization: string | null): string | null {
   if (!authorization?.startsWith('Bearer ')) return null

@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import {
+  DEFAULT_READING_SETTINGS,
   READING_FONTS,
   READING_THEMES,
   type ReadingSettings,
@@ -32,6 +33,8 @@ export function ReadingSettingsMenu({
   onChange: (settings: ReadingSettings) => void
   triggerClassName?: string
 }) {
+  const lineHeight = settings.lineHeight ?? DEFAULT_READING_SETTINGS.lineHeight
+
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -51,6 +54,14 @@ export function ReadingSettingsMenu({
           increaseDisabled={settings.fontSize >= 32}
           onDecrease={() => onChange({ ...settings, fontSize: Math.max(16, settings.fontSize - 2) })}
           onIncrease={() => onChange({ ...settings, fontSize: Math.min(32, settings.fontSize + 2) })}
+        />
+        <SettingStepper
+          label="ระยะห่างบรรทัด"
+          value={`${lineHeight.toFixed(1)} เท่า`}
+          decreaseDisabled={lineHeight <= 1.5}
+          increaseDisabled={lineHeight >= 3}
+          onDecrease={() => onChange({ ...settings, lineHeight: Math.max(1.5, Math.round((lineHeight - 0.1) * 10) / 10) })}
+          onIncrease={() => onChange({ ...settings, lineHeight: Math.min(3, Math.round((lineHeight + 0.1) * 10) / 10) })}
         />
         <div>
           <p className="mb-2 text-xs font-semibold text-muted-foreground">ฟอนต์</p>
