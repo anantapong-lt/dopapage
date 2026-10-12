@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { UploadCloud } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { STORY_COVER_ACCEPTED_TYPES, STORY_COVER_MAX_FILE_SIZE } from '@/constants/story.constant'
@@ -13,6 +13,8 @@ interface CoverImageUploadProps {
 export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadProps) {
   const { clearFieldError } = useCreateStoryForm()
   const inputRef = useRef<HTMLInputElement>(null)
+  const dragDepthRef = useRef(0)
+  const [isDragging, setIsDragging] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialCoverUrl)
 
   useEffect(() => {
@@ -27,8 +29,7 @@ export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadPro
     setPreviewUrl(initialCoverUrl)
   }
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const selectFile = (file?: File) => {
     if (!file) return
 
     clearFieldError('cover')
@@ -49,7 +50,38 @@ export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadPro
   }
 
   return (
-    <div data-field="cover">
+    <div
+      data-field="cover"
+      className={`relative rounded-2xl transition-shadow ${isDragging ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes('Files')) return
+        event.preventDefault()
+        dragDepthRef.current += 1
+        setIsDragging(true)
+      }}
+      onDragOver={(event) => {
+        event.preventDefault()
+        if (event.dataTransfer.types.includes('Files')) event.dataTransfer.dropEffect = 'copy'
+      }}
+      onDragLeave={(event) => {
+        event.preventDefault()
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+        if (dragDepthRef.current === 0) setIsDragging(false)
+      }}
+      onDrop={(event) => {
+        event.preventDefault()
+        dragDepthRef.current = 0
+        setIsDragging(false)
+
+        const file = event.dataTransfer.files[0]
+        if (!file || !inputRef.current) return
+
+        const transfer = new DataTransfer()
+        transfer.items.add(file)
+        inputRef.current.files = transfer.files
+        selectFile(file)
+      }}
+    >
       {previewUrl ? (
         <button
           type="button"
@@ -57,7 +89,7 @@ export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadPro
           aria-label="เลือกรูปปกใหม่"
           className="group relative aspect-[3/4] w-full cursor-pointer overflow-hidden rounded-2xl bg-muted"
         >
-          <img src={previewUrl} alt="ตัวอย่างรูปปก" className="size-full object-cover" />
+          <img src={previewUrl} alt="ตัวอย่างรูปปก" draggable={false} className="size-full object-cover" />
           <span className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
             <span className="flex size-12 items-center justify-center rounded-full bg-white/90 text-primary shadow-sm">
               <UploadCloud className="size-6" strokeWidth={1.8} />
@@ -73,10 +105,19 @@ export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadPro
           <span className="flex size-12 items-center justify-center rounded-full bg-accent text-primary">
             <UploadCloud className="size-6" strokeWidth={1.8} />
           </span>
-          <span className="mt-3 text-sm font-bold">เลือกไฟล์รูปปก</span>
+          <span className="mt-3 text-sm font-bold">ลากไฟล์รูปปกมาวางที่นี่</span>
+          <span className="mt-1 text-xs text-muted-foreground">หรือคลิกเพื่อเลือกไฟล์</span>
           <span className="mt-1 text-xs text-muted-foreground">JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
           <span className="mt-1 text-xs text-muted-foreground">ขนาดแนะนำ 1200 × 1600 px</span>
         </button>
+      )}
+
+      {isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-primary bg-background/95 px-5 text-center">
+          <UploadCloud className="size-8 text-primary" strokeWidth={1.8} />
+          <span className="mt-3 text-sm font-bold text-primary">วางไฟล์รูปปกที่นี่</span>
+          <span className="mt-1 text-xs text-muted-foreground">JPG, PNG หรือ WebP ขนาดไม่เกิน 5 MB</span>
+        </div>
       )}
 
       <Input
@@ -85,7 +126,7 @@ export function CoverImageUpload({ initialCoverUrl = null }: CoverImageUploadPro
         type="file"
         name="cover"
         accept="image/jpeg,image/png,image/webp"
-        onChange={handleFileChange}
+        onChange={(event) => selectFile(event.target.files?.[0])}
         className="sr-only"
         aria-label="เลือกไฟล์รูปปก"
       />
