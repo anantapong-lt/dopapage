@@ -638,9 +638,9 @@ export default function CreateChapterPage({ params }: CreateChapterPageProps) {
           </section>
         )}
 
-        <div className="flex justify-end gap-3 border-t border-border pt-5">
+        <div className="flex flex-wrap justify-center gap-3 border-t border-border pt-5">
           {submitError && (
-            <p role="alert" className="mr-auto self-center text-sm text-destructive">
+            <p role="alert" className="w-full text-center text-sm text-destructive">
               {submitError}
             </p>
           )}
