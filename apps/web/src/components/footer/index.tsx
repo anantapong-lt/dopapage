@@ -21,6 +21,11 @@ export function Footer(_: { registrationEnabled: boolean }) {
             <ul className="flex flex-col gap-2.5 text-sm text-[#F1F1EF]/35">
               <li aria-disabled="true" title="ยังไม่เปิดใช้งาน">ติดต่อแอดมิน</li>
               <li aria-disabled="true" title="ยังไม่เปิดใช้งาน">คำถามที่พบบ่อย</li>
+              <li>
+                <Link href="/privacy" className="text-[#F1F1EF]/70 transition-colors hover:text-[#F1F1EF]">
+                  นโยบายความเป็นส่วนตัว
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
