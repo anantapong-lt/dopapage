@@ -5,7 +5,10 @@ import { useAuth } from '@/components/auth/auth-provider'
 import { SITE_CONFIG } from '@/site.config'
 
 function formatNumber(value: number | string) {
-  return Number(value).toLocaleString('th-TH')
+  return Number(value).toLocaleString('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 type TopupBalanceProps = {

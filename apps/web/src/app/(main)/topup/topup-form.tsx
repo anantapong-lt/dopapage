@@ -13,10 +13,13 @@ import {
 import { createTopup } from '@/controllers/topup.controller'
 import type { CreateTopupResponse, TopupPackage, TopupTransaction } from '@/interface/topup.interface'
 import { ApiError } from '@/lib/api-client'
-import { SITE_CONFIG } from '@/site.config'
+import { getApiUrl, SITE_CONFIG } from '@/site.config'
 
 function formatNumber(value: number) {
-  return value.toLocaleString('th-TH')
+  return value.toLocaleString('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 function qrImageSource(base64: string) {
@@ -46,10 +49,7 @@ function saveQrCode(base64: string, transactionId: string) {
 }
 
 function topupSocketUrl(topupId: string) {
-  const url = new URL(
-    `/topups/${encodeURIComponent(topupId)}/events`,
-    SITE_CONFIG.apiUrl,
-  )
+  const url = new URL(getApiUrl(`/topups/${encodeURIComponent(topupId)}/events`))
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.toString()
 }
@@ -416,7 +416,7 @@ export function TopupForm({ packages }: { packages: TopupPackage[] }) {
                   <div className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">จะได้รับ</dt>
                     <dd className="font-semibold text-foreground">
-                      {Number(createdTopup.transaction.credited_coins).toLocaleString('th-TH')} {SITE_CONFIG.coinName}
+                      {formatNumber(Number(createdTopup.transaction.credited_coins))} {SITE_CONFIG.coinName}
                     </dd>
                   </div>
                   <div className="flex justify-between gap-3">

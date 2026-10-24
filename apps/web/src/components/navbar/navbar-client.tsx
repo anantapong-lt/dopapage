@@ -222,7 +222,10 @@ function DesktopNav() {
 }
 
 function formatBalance(balance: string) {
-  return Number(balance).toLocaleString('th-TH')
+  return Number(balance).toLocaleString('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
 }
 
 function UserDropdownMenu({
