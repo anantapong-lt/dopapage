@@ -97,7 +97,7 @@ export async function getWriterDashboardActivity(
       GROUP BY 1
     )
     SELECT to_char(buckets.bucket, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00' AS bucket,
-      COALESCE(sales.gross_sales, 0)::TEXT AS gross_sales,
+      ROUND(COALESCE(sales.gross_sales, 0), 2)::TEXT AS gross_sales,
       '0'::TEXT AS view_count
     FROM buckets
     LEFT JOIN sales ON sales.bucket = buckets.bucket
@@ -116,7 +116,7 @@ export async function getWriterDashboardTopStories(
         SELECT date_trunc(${startUnit}, NOW() AT TIME ZONE 'Asia/Bangkok') AS starts_at,
           NOW() AT TIME ZONE 'Asia/Bangkok' AS ends_at
       )
-      SELECT stories.id, stories.title, COALESCE(SUM(cp.price), 0)::TEXT AS value
+      SELECT stories.id, stories.title, ROUND(COALESCE(SUM(cp.price), 0), 2)::TEXT AS value
       FROM chapter_purchases cp
       JOIN chapters ON chapters.id = cp.chapter_id
       JOIN stories ON stories.id = chapters.story_id

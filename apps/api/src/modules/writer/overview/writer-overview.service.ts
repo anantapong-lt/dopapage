@@ -57,7 +57,7 @@ export async function findOverviewPurchases(
     )
     SELECT to_char(buckets.bucket, 'YYYY-MM-DD"T"HH24:MI:SS') || '+07:00' AS bucket,
       COALESCE(purchases.purchase_count, 0)::TEXT AS purchase_count,
-      COALESCE(purchases.gross_sales, 0)::TEXT AS gross_sales
+      ROUND(COALESCE(purchases.gross_sales, 0), 2)::TEXT AS gross_sales
     FROM buckets LEFT JOIN purchases ON purchases.bucket = buckets.bucket
     ORDER BY buckets.bucket
   `
