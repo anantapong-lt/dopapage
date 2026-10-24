@@ -26,6 +26,11 @@ import type {
 import { SITE_CONFIG } from '@/site.config'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
 
+const coinPriceFormatter = new Intl.NumberFormat('th-TH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})
+
 function formatRelativeDate(value: string, referenceTime: number) {
   const elapsedSeconds = Math.max(
     0,
@@ -428,10 +433,10 @@ export function PublicChapterList({
                 </span>
                 {!chapter.can_read ? (
                   <span
-                    aria-label={`${Number(chapter.price).toLocaleString('th-TH')} ${SITE_CONFIG.coinName}`}
+                    aria-label={`${coinPriceFormatter.format(Number(chapter.price))} ${SITE_CONFIG.coinName}`}
                     className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold text-primary group-data-[selected=true]:bg-primary-foreground/15 group-data-[selected=true]:text-primary-foreground sm:group-data-[selected=true]:bg-primary/10 sm:group-data-[selected=true]:text-primary"
                   >
-                    {Number(chapter.price).toLocaleString('th-TH')}
+                    {coinPriceFormatter.format(Number(chapter.price))}
                     <GiTwoCoins
                       className="size-4 text-amber-500 drop-shadow-[0_1px_0_rgb(180_83_9_/_0.45)]"
                       aria-hidden="true"
