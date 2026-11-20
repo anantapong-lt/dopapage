@@ -1,3 +1,4 @@
+import { decodeRouteParam } from '@/utils/route-param.util'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cookies } from 'next/headers'
@@ -14,7 +15,8 @@ interface ChapterPageProps {
 }
 
 export async function generateMetadata({ params }: ChapterPageProps): Promise<Metadata> {
-  const { slug, chapterNumber } = await params
+  const { slug: rawSlug, chapterNumber } = await params
+  const slug = decodeRouteParam(rawSlug)
 
   try {
     const { story, chapters } = await getPublicContent(slug)
@@ -39,7 +41,8 @@ export async function generateMetadata({ params }: ChapterPageProps): Promise<Me
 }
 
 export default async function ChapterPage({ params }: ChapterPageProps) {
-  const { slug, chapterNumber } = await params
+  const { slug: rawSlug, chapterNumber } = await params
+  const slug = decodeRouteParam(rawSlug)
 
   try {
     const cookieHeader = (await cookies()).toString()

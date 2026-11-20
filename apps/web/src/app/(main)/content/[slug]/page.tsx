@@ -1,3 +1,4 @@
+import { decodeRouteParam } from '@/utils/route-param.util'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import { cookies } from 'next/headers'
@@ -34,7 +35,7 @@ function formatCompactCount(value: string) {
 }
 
 export async function generateMetadata({ params }: ContentPageProps): Promise<Metadata> {
-  const { slug } = await params
+  const slug = decodeRouteParam((await params).slug)
 
   try {
     const { story } = await getPublicContent(slug)
@@ -52,7 +53,7 @@ export async function generateMetadata({ params }: ContentPageProps): Promise<Me
 }
 
 export default async function ContentPage({ params }: ContentPageProps) {
-  const { slug } = await params
+  const slug = decodeRouteParam((await params).slug)
 
   try {
     const cookieHeader = (await cookies()).toString()
