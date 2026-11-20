@@ -2,6 +2,7 @@ import { db } from '../../db'
 import { createPrivateAssetUrl, uploadAsset } from '../assets/local-asset.service'
 import { NOTIFICATION_TYPE } from '../../models/notification.model'
 import { WITHDRAWAL_STATUS, type WithdrawalStatus } from '../../models/withdrawal.model'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 
 interface WithdrawalRow {
   id: string
@@ -82,11 +83,24 @@ export async function processAdminWithdrawal(
       UPDATE withdrawal_requests SET status = ${nextStatus}, reviewed_by_user_id = ${adminId}, approval_note = ${action === 'approve' ? note || null : current.approval_note}, rejection_reason = ${action === 'reject' ? note : current.rejection_reason}, transfer_proof_key = COALESCE(${proofKey}, transfer_proof_key), approved_at = CASE WHEN ${action} = 'approve' THEN NOW() ELSE approved_at END, paid_at = CASE WHEN ${action} = 'pay' THEN NOW() ELSE paid_at END, rejected_at = CASE WHEN ${action} = 'reject' THEN NOW() ELSE rejected_at END, updated_at = NOW() WHERE id = ${id}
     `
     if (action === 'reject') {
-      await tx`
+      const [refundedWriter] = await tx<{ balance: string }[]>`
         UPDATE users
         SET balance = ROUND(balance + ${current.requested_amount}::NUMERIC, 2), updated_at = NOW()
         WHERE id = ${current.writer_user_id}
+        RETURNING balance::TEXT AS balance
       `
+      if (refundedWriter) {
+        await recordCoinLedger(tx, {
+          userId: current.writer_user_id,
+          entryType: COIN_LEDGER_TYPE.WITHDRAWAL_REFUND,
+          amount: current.requested_amount,
+          balanceAfter: refundedWriter.balance,
+          referenceType: 'withdrawal_request',
+          referenceId: id,
+          actorUserId: adminId,
+          note: note || null,
+        })
+      }
     }
     if (action === 'approve' || action === 'reject') {
       const approved = action === 'approve'

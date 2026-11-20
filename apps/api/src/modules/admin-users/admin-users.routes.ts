@@ -10,7 +10,7 @@ export const adminUsersRoutes = new Elysia({ prefix: '/admin/users' })
     auth: USER_ROLE.SUPER_ADMIN,
     query: adminUsersQuerySchema,
   })
-  .put('/:id', ({ params, body }) => editAdminUser(params.id, body), {
+  .put('/:id', ({ params, body, currentUser }) => editAdminUser(params.id, currentUser.id, body), {
     auth: USER_ROLE.SUPER_ADMIN,
     params: adminUserParamsSchema,
     body: updateAdminUserBodySchema,

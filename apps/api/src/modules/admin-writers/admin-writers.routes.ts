@@ -20,7 +20,7 @@ export const adminWritersRoutes = new Elysia({ prefix: '/admin/writers' })
     params: adminWriterParamsSchema,
     body: adminWriterStatusBodySchema,
   })
-  .put('/:id', ({ params, body }) => editAdminWriter(params.id, body), {
+  .put('/:id', ({ params, body, currentUser }) => editAdminWriter(params.id, currentUser.id, body), {
     auth: USER_ROLE.SUPER_ADMIN,
     params: adminWriterParamsSchema,
     body: updateAdminWriterBodySchema,

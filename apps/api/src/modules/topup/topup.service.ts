@@ -4,6 +4,7 @@ import { env, isDev } from '../../config/env'
 import { publishTopupEvent } from './topup.events'
 import { TopupStatus } from '../../models/topup.model'
 import { getPublicTopupConfig } from '../admin-site/admin-site.service'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 
 export interface TopupTransaction {
   id: string
@@ -505,11 +506,22 @@ export async function processTmweasyWebhook(
       throw new TopupError('รายการเติมเงินไม่อยู่ในสถานะรอชำระเงิน', 409)
     }
 
-    await transaction`
+    const [creditedUser] = await transaction<{ balance: string }[]>`
       UPDATE users
       SET balance = balance + ${topup.credited_coins}::NUMERIC, updated_at = NOW()
       WHERE id = ${topup.user_id}::UUID
+      RETURNING balance::TEXT AS balance
     `
+    if (creditedUser) {
+      await recordCoinLedger(transaction, {
+        userId: topup.user_id,
+        entryType: COIN_LEDGER_TYPE.TOPUP,
+        amount: topup.credited_coins,
+        balanceAfter: creditedUser.balance,
+        referenceType: 'topup_transaction',
+        referenceId: payload.ref1,
+      })
+    }
 
     const [paidTopup] = await transaction<TopupTransaction[]>`
       UPDATE topup_transactions

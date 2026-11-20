@@ -25,9 +25,9 @@ export async function getAdminUsers(query: typeof adminUsersQuerySchema.static) 
   }
 }
 
-export async function editAdminUser(id: string, body: typeof updateAdminUserBodySchema.static) {
+export async function editAdminUser(id: string, actorUserId: string, body: typeof updateAdminUserBodySchema.static) {
   try {
-    const user = await updateAdminUser(id, {
+    const user = await updateAdminUser(id, actorUserId, {
       displayName: body.display_name.trim(),
       username: body.username.trim(),
       email: body.email.trim().toLowerCase(),

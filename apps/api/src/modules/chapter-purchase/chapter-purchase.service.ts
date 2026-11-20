@@ -1,6 +1,7 @@
 import { db } from '../../db'
 import { MODERATION_STATUS } from '../../models/story.model'
 import { USER_STATUS, WRITER_STATUS } from '../../models/user.model'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 import type {
   ChapterPurchase,
   ExistingChapterPurchase,
@@ -204,19 +205,42 @@ export async function purchaseChapters(
         )
       }
 
-      await transaction`
+      const [updatedBuyer] = await transaction<{ balance: string }[]>`
         UPDATE users
         SET balance = balance - ${totalPrice}::NUMERIC, updated_at = NOW()
         WHERE id = ${buyerUserId}
+        RETURNING balance::TEXT AS balance
       `
+      if (updatedBuyer) {
+        await recordCoinLedger(transaction, {
+          userId: buyerUserId,
+          entryType: COIN_LEDGER_TYPE.PURCHASE,
+          amount: -totalPrice,
+          balanceAfter: updatedBuyer.balance,
+          referenceType: 'chapter_purchase',
+          referenceId: purchases.length === 1 ? purchases[0]?.id ?? null : null,
+          note: `ซื้อ ${purchases.length} ตอน`,
+        })
+      }
 
       for (const [writerUserId, credit] of writerCredits) {
         if (credit <= 0) continue
-        await transaction`
+        const [updatedWriter] = await transaction<{ balance: string }[]>`
           UPDATE users
           SET balance = balance + ${credit}::NUMERIC, updated_at = NOW()
           WHERE id = ${writerUserId}
+          RETURNING balance::TEXT AS balance
         `
+        if (updatedWriter) {
+          await recordCoinLedger(transaction, {
+            userId: writerUserId,
+            entryType: COIN_LEDGER_TYPE.SALE,
+            amount: credit,
+            balanceAfter: updatedWriter.balance,
+            referenceType: 'chapter_purchase',
+            referenceId: purchases.length === 1 ? purchases[0]?.id ?? null : null,
+          })
+        }
       }
 
       return purchases

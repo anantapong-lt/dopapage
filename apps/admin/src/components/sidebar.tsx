@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   Cpu,
   FileText,
+  History,
   LayoutTemplate,
   LogOut,
   PenSquare,
@@ -57,6 +58,7 @@ const navigation = [
       { href: '/transactions', label: 'คำขอถอน', icon: Banknote },
       { href: '/topups', label: 'รายการเติมเงิน', icon: WalletCards },
       { href: '/purchases', label: 'ประวัติการซื้อ', icon: ReceiptText },
+      { href: '/coin-ledger', label: 'ประวัติยอดคงเหลือ', icon: History },
     ],
   },
   {

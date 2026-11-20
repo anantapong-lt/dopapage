@@ -40,9 +40,9 @@ export async function changeAdminWriterStatus(id: string, body: typeof adminWrit
   }
 }
 
-export async function editAdminWriter(id: string, body: typeof updateAdminWriterBodySchema.static) {
+export async function editAdminWriter(id: string, actorUserId: string, body: typeof updateAdminWriterBodySchema.static) {
   try {
-    const writer = await updateAdminWriter(id, {
+    const writer = await updateAdminWriter(id, actorUserId, {
       displayName: body.display_name.trim(),
       phoneNumber: normalizePhoneNumber(body.phone_number),
       balance: body.balance,

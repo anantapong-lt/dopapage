@@ -2,6 +2,7 @@ import { db } from '../../db'
 import { NOTIFICATION_TYPE } from '../../models/notification.model'
 import { USER_ROLE, USER_STATUS } from '../../models/user.model'
 import { WITHDRAWAL_STATUS, type WithdrawalStatus } from '../../models/withdrawal.model'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 import type { WriterBankAccount } from '../writer-bank-account/writer-bank-account.service'
 
 interface WithdrawalConfig {
@@ -186,11 +187,23 @@ export async function createWriterWithdrawal(userId: string, amount: string) {
     `
     if (!request) throw new WriterWithdrawalError('ยอดถอนหลังหักค่าคอมมิชชันต้องมากกว่า 0', 400)
 
-    await transaction`
+    const [debitedWriter] = await transaction<{ balance: string }[]>`
       UPDATE users
       SET balance = ROUND(balance - ${amount}::NUMERIC, 2), updated_at = NOW()
       WHERE id = ${userId}
+      RETURNING balance::TEXT AS balance
     `
+    if (debitedWriter) {
+      await recordCoinLedger(transaction, {
+        userId,
+        entryType: COIN_LEDGER_TYPE.WITHDRAWAL_REQUEST,
+        amount: -amount,
+        balanceAfter: debitedWriter.balance,
+        referenceType: 'withdrawal_request',
+        referenceId: request.id,
+        actorUserId: userId,
+      })
+    }
     await transaction`
       INSERT INTO withdrawal_request_events (
         withdrawal_request_id, from_status, to_status, actor_user_id

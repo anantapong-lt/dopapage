@@ -1,6 +1,7 @@
 import { db } from '../../db'
 import { USER_ROLE, USER_STATUS, WRITER_STATUS, type WriterStatus } from '../../models/user.model'
 import { WITHDRAWAL_STATUS } from '../../models/withdrawal.model'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 
 export interface AdminWriter {
   id: string
@@ -120,18 +121,46 @@ export async function updateAdminWriterStatus(id: string, status: WriterStatus, 
 
 export async function updateAdminWriter(
   id: string,
+  actorUserId: string,
   input: { displayName: string; phoneNumber: string | null; balance: string },
 ): Promise<{ id: string; display_name: string; phone_number: string | null; balance: string } | null> {
-  const [writer] = await db<Array<{ id: string; display_name: string; phone_number: string | null; balance: string }>>`
-    UPDATE users
-    SET display_name = ${input.displayName},
-        phone_number = ${input.phoneNumber},
-        balance = ROUND(${input.balance}::NUMERIC, 2),
-        updated_at = NOW()
-    WHERE id = ${id}
-      AND role = ${USER_ROLE.WRITER}
-      AND deleted_at IS NULL
-    RETURNING id, display_name, phone_number, balance::TEXT
-  `
-  return writer ?? null
+  return db.begin(async (transaction) => {
+    const [previous] = await transaction<{ balance: string }[]>`
+      SELECT balance::TEXT AS balance
+      FROM users
+      WHERE id = ${id}
+        AND role = ${USER_ROLE.WRITER}
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `
+    if (!previous) return null
+
+    const [writer] = await transaction<Array<{ id: string; display_name: string; phone_number: string | null; balance: string }>>`
+      UPDATE users
+      SET display_name = ${input.displayName},
+          phone_number = ${input.phoneNumber},
+          balance = ROUND(${input.balance}::NUMERIC, 2),
+          updated_at = NOW()
+      WHERE id = ${id}
+        AND role = ${USER_ROLE.WRITER}
+        AND deleted_at IS NULL
+      RETURNING id, display_name, phone_number, balance::TEXT
+    `
+    if (!writer) return null
+
+    const [change] = await transaction<{ amount: string }[]>`
+      SELECT ROUND(${writer.balance}::NUMERIC - ${previous.balance}::NUMERIC, 2)::TEXT AS amount
+    `
+    if (change && Number(change.amount) !== 0) {
+      await recordCoinLedger(transaction, {
+        userId: id,
+        entryType: COIN_LEDGER_TYPE.ADMIN_ADJUSTMENT,
+        amount: change.amount,
+        balanceAfter: writer.balance,
+        referenceType: 'admin_edit',
+        actorUserId,
+      })
+    }
+    return writer
+  })
 }

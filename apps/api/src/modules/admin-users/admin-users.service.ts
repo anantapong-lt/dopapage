@@ -1,6 +1,7 @@
 import { db } from '../../db'
 import type { UserStatus } from '../../models/user.model'
 import { TopupStatus } from '../../models/topup.model'
+import { COIN_LEDGER_TYPE, recordCoinLedger } from '../coin-ledger/coin-ledger.service'
 
 interface AdminUserRow {
   id: string
@@ -72,22 +73,50 @@ export function findAdminUsers(page: number, limit: number, search: string, stat
 
 export async function updateAdminUser(
   id: string,
+  actorUserId: string,
   input: { displayName: string; username: string; email: string; phoneNumber: string | null; status: UserStatus; balance: string },
 ) {
-  const [user] = await db<AdminUserRow[]>`
-    UPDATE users
-    SET display_name = ${input.displayName},
-        username = ${input.username},
-        email = ${input.email},
-        phone_number = ${input.phoneNumber},
-        status = ${input.status},
-        balance = ROUND(${input.balance}::NUMERIC, 2),
-        updated_at = NOW()
-    WHERE id = ${id}
-      AND role = 'user'
-      AND deleted_at IS NULL
-    RETURNING id, email, phone_number, username, display_name, balance::TEXT, role, status,
-      email_verified_at, last_login_at, created_at
-  `
-  return user ?? null
+  return db.begin(async (transaction) => {
+    const [previous] = await transaction<{ balance: string }[]>`
+      SELECT balance::TEXT AS balance
+      FROM users
+      WHERE id = ${id}
+        AND role = 'user'
+        AND deleted_at IS NULL
+      FOR UPDATE
+    `
+    if (!previous) return null
+
+    const [user] = await transaction<AdminUserRow[]>`
+      UPDATE users
+      SET display_name = ${input.displayName},
+          username = ${input.username},
+          email = ${input.email},
+          phone_number = ${input.phoneNumber},
+          status = ${input.status},
+          balance = ROUND(${input.balance}::NUMERIC, 2),
+          updated_at = NOW()
+      WHERE id = ${id}
+        AND role = 'user'
+        AND deleted_at IS NULL
+      RETURNING id, email, phone_number, username, display_name, balance::TEXT, role, status,
+        email_verified_at, last_login_at, created_at
+    `
+    if (!user) return null
+
+    const [change] = await transaction<{ amount: string }[]>`
+      SELECT ROUND(${user.balance}::NUMERIC - ${previous.balance}::NUMERIC, 2)::TEXT AS amount
+    `
+    if (change && Number(change.amount) !== 0) {
+      await recordCoinLedger(transaction, {
+        userId: id,
+        entryType: COIN_LEDGER_TYPE.ADMIN_ADJUSTMENT,
+        amount: change.amount,
+        balanceAfter: user.balance,
+        referenceType: 'admin_edit',
+        actorUserId,
+      })
+    }
+    return user
+  })
 }
