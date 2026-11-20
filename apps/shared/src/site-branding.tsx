@@ -1,11 +1,13 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { SITE_CONFIG } from './site-config'
 
-type Branding = { logo_url: string | null; favicon_url: string | null }
+type Branding = { logo_url: string | null; favicon_url: string | null; coin_name: string | null }
 type BrandingContext = {
   logoUrl: string | null
   faviconUrl: string | null
+  coinName: string
   loading: boolean
   updateBranding: (branding: Branding) => void
 }
@@ -24,9 +26,13 @@ function loadBranding(apiUrl: string): Promise<Branding> {
         return {
           logo_url: typeof data.logo_url === 'string' ? data.logo_url : null,
           favicon_url: typeof data.favicon_url === 'string' ? data.favicon_url : null,
+          coin_name: typeof data.coin_name === 'string' && data.coin_name.trim() ? data.coin_name.trim() : null,
         }
       })
-      .catch(() => ({ logo_url: null, favicon_url: null }))
+      .catch((error: unknown) => {
+        requests.delete(apiUrl)
+        throw error
+      })
     requests.set(apiUrl, request)
   }
   return request
@@ -36,19 +42,43 @@ export function SiteBrandingProvider({ apiUrl, children }: { apiUrl: string; chi
   const baseUrl = apiUrl.replace(/\/+$/, '')
   const [logoUrl, setLogoUrl] = useState<string | null>(null)
   const [faviconUrl, setFaviconUrl] = useState<string | null>(null)
+  const [coinName, setCoinName] = useState<string>(SITE_CONFIG.coinName)
   const [loading, setLoading] = useState(true)
   const revision = useRef(0)
 
   useEffect(() => {
     let active = true
-    const initialRevision = revision.current
-    void loadBranding(baseUrl).then((branding) => {
-      if (!active || revision.current !== initialRevision) return
-      setLogoUrl(branding.logo_url)
-      setFaviconUrl(branding.favicon_url)
-      setLoading(false)
-    })
-    return () => { active = false }
+    let refreshing = false
+    async function refreshBranding(force = false) {
+      if (refreshing) return
+      refreshing = true
+      const initialRevision = revision.current
+      if (force) requests.delete(baseUrl)
+      try {
+        const branding = await loadBranding(baseUrl)
+        if (!active || revision.current !== initialRevision) return
+        setLogoUrl(branding.logo_url)
+        setFaviconUrl(branding.favicon_url)
+        setCoinName(branding.coin_name ?? SITE_CONFIG.coinName)
+      } catch {
+        // Keep the last known settings when a background refresh fails.
+      } finally {
+        refreshing = false
+        if (active) setLoading(false)
+      }
+    }
+    const onFocus = () => { void refreshBranding(true) }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') onFocus()
+    }
+    void refreshBranding()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      active = false
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
   }, [baseUrl])
 
   const updateBranding = useCallback((branding: Branding) => {
@@ -56,6 +86,7 @@ export function SiteBrandingProvider({ apiUrl, children }: { apiUrl: string; chi
     requests.set(baseUrl, Promise.resolve(branding))
     setLogoUrl(branding.logo_url)
     setFaviconUrl(branding.favicon_url)
+    setCoinName(branding.coin_name?.trim() || SITE_CONFIG.coinName)
     setLoading(false)
   }, [baseUrl])
 
@@ -104,7 +135,7 @@ export function SiteBrandingProvider({ apiUrl, children }: { apiUrl: string; chi
     }
   }, [faviconUrl])
 
-  const value = useMemo(() => ({ logoUrl, faviconUrl, loading, updateBranding }), [logoUrl, faviconUrl, loading, updateBranding])
+  const value = useMemo(() => ({ logoUrl, faviconUrl, coinName, loading, updateBranding }), [logoUrl, faviconUrl, coinName, loading, updateBranding])
   return <SiteBrandingContext.Provider value={value}>{children}</SiteBrandingContext.Provider>
 }
 
@@ -112,6 +143,16 @@ export function useSiteBranding() {
   const context = useContext(SiteBrandingContext)
   if (!context) throw new Error('SiteBrandingProvider is required')
   return context
+}
+
+export function useSiteConfig<T extends { coinName: string }>(config: T): Omit<T, 'coinName'> & { coinName: string } {
+  const { coinName } = useSiteBranding()
+  return useMemo(() => ({ ...config, coinName }), [config, coinName])
+}
+
+export function SiteCoinName() {
+  const config = useSiteConfig(SITE_CONFIG)
+  return <>{config.coinName}</>
 }
 
 export function SiteLogo({ className, fallback, alt = 'Dopapage' }: {

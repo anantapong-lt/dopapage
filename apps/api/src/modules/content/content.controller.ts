@@ -22,6 +22,24 @@ import {
 import { createWriterChapterPageSignedUrl } from '../writer/chapter/writer-chapter-page.service'
 import { isFeatureEnabled } from '../site-config/site-config.service'
 
+export function normalizeContentSlug({ request, params }: {
+  request: Request
+  params?: { slug?: string }
+}) {
+  if (!params?.slug) return
+
+  const encodedSlug = new URL(request.url).pathname.match(/^\/contents\/([^/]+)/)?.[1]
+  if (!encodedSlug) return
+
+  try {
+    // Decode the URL segment once, independent of whether the router has
+    // already decoded params.slug. Preserve literal percent signs and pluses.
+    params.slug = decodeURIComponent(encodedSlug)
+  } catch {
+    // Leave malformed escapes to the existing validation and not-found flow.
+  }
+}
+
 const FORBIDDEN_COMMENT_WORDS = [
   'หน้าโต่วอิน คอคาร์บอน',
   'หนังศีรษะสลัดเส้นผม',

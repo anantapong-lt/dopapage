@@ -396,7 +396,7 @@ export default function PurchasesPage() {
 
       <Card>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(11rem,1.2fr)_minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(12rem,1fr)_auto_auto] md:items-end">
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-story">เรื่อง</Label>
             <Popover open={storyPickerOpen} onOpenChange={(open) => {
               setStoryPickerOpen(open)
@@ -439,7 +439,7 @@ export default function PurchasesPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-users">ผู้ซื้อ</Label>
             <Popover open={userPickerOpen} onOpenChange={(open) => {
               setUserPickerOpen(open)
@@ -511,7 +511,7 @@ export default function PurchasesPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="purchase-writers">นักเขียน</Label>
             <Popover open={writerPickerOpen} onOpenChange={(open) => {
               setWriterPickerOpen(open)
@@ -554,7 +554,7 @@ export default function PurchasesPage() {
               </PopoverContent>
             </Popover>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label>ช่วงวันที่</Label>
             <Popover>
               <PopoverTrigger

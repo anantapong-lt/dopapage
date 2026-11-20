@@ -14,7 +14,8 @@ import { getChapterPurchaseHistory } from '@/controllers/chapter-purchase.contro
 import { getTopupHistory } from '@/controllers/topup.controller'
 import type { ChapterPurchaseHistoryResponse } from '@/interface/chapter-purchase.interface'
 import type { TopupHistoryResponse, TopupStatus } from '@/interface/topup.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const PAGE_LIMIT = 10
 const amountFormat = new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -95,6 +96,7 @@ function Pagination({ pagination, onPageChange, isLoading }: {
 }
 
 export function TransactionsHistory() {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken, status } = useAuth()
   const [activeTab, setActiveTab] = useState<TabName>('topup')
   const [topupPage, setTopupPage] = useState(1)

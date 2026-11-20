@@ -38,7 +38,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { userRole, type AuthUser } from '@/interface/user.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 import type { UserNotification } from '@/interface/notification.interface'
 import type { BankConfig } from '@/interface/writer-bank-account.interface'
 import type { PublicFeatureConfig } from '@/lib/server-auth'
@@ -241,6 +242,7 @@ function UserDropdownMenu({
   onLogout: () => void
   onOpenWriterApplication: () => void
 }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const avatar = (
     <span
       className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary font-semibold text-primary-foreground ${compact ? 'size-8 text-xs ring-2 ring-primary/35 ring-offset-2 ring-offset-background' : 'size-7 text-xs'}`}
@@ -361,6 +363,7 @@ export function NavbarClient({
   initialUnreadNotificationCount: number
   features: PublicFeatureConfig | null
 }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [readerNavbarVisible, setReaderNavbarVisible] = useState(true)
   const [writerApplicationOpen, setWriterApplicationOpen] = useState(false)
@@ -472,10 +475,10 @@ export function NavbarClient({
           <div className="flex h-[4.35rem] items-center justify-between">
             <div className="flex min-w-0 items-center gap-5 md:gap-7">
               <Link href="/" className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-80">
-                <SiteLogo className="aspect-[1185/321] h-9 -translate-y-1 shrink-0" fallback={<span
+                <SiteLogo className="h-15 w-[8.3rem] shrink-0" fallback={<span
                   role="img"
                   aria-label="Dopapage"
-                  className="aspect-[1185/321] h-9 -translate-y-1 bg-gradient-to-r from-[#54252b] to-[#b56871] [mask-image:url(/readji-wordmark.png)] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain] [-webkit-mask-image:url(/readji-wordmark.png)] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain]"
+                  className="h-15 w-[8.3rem] bg-gradient-to-r from-[#54252b] to-[#b56871] [mask-image:url(/readji-wordmark.png)] [mask-position:center] [mask-repeat:no-repeat] [mask-size:contain] [-webkit-mask-image:url(/readji-wordmark.png)] [-webkit-mask-position:center] [-webkit-mask-repeat:no-repeat] [-webkit-mask-size:contain]"
                 />} />
               </Link>
               <DesktopNav />

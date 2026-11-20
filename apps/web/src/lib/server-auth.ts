@@ -94,6 +94,24 @@ export async function getServerTopupConfig(): Promise<TopupPageConfig | null> {
   }
 }
 
+export async function getServerSiteConfig() {
+  try {
+    const response = await fetch(`${serverApiUrl()}/site-config/branding`, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    })
+    if (response.ok) {
+      const body = await response.json() as { coin_name?: unknown }
+      if (typeof body.coin_name === 'string' && body.coin_name.trim()) {
+        return { ...SITE_CONFIG, coinName: body.coin_name.trim() }
+      }
+    }
+  } catch {
+    // Use the default name if the public settings are temporarily unavailable.
+  }
+  return SITE_CONFIG
+}
+
 export async function getServerFeatureConfig(): Promise<PublicFeatureConfig | null> {
   try {
     const response = await fetch(`${serverApiUrl()}/site-config/features`, {

@@ -37,7 +37,7 @@ export async function importWriterChaptersResponse(
         if (row.price && !/^\d+(\.\d{1,2})?$/.test(row.price)) throw new Error('กรุณาระบุราคาที่ถูกต้อง ทศนิยมไม่เกิน 2 ตำแหน่ง')
         if (row.content.includes('\u0000')) throw new Error('เนื้อหามีอักขระที่ไม่รองรับ')
         const content = row.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          .replace(/\r\n?/g, '\n').split('\n').map((line) => `<p>${line || '<br>'}</p>`).join('')
+          .replace(/\r\n?/g, '\n').split('\n').map((line) => `<p>${line}</p>`).join('')
         inputs.push(normalizeChapterInput(type, { ...row, chapter_number: Number(row.chapter_number), price: row.price ? Number(row.price) : 0, content }))
       } catch (error) {
         errors.push({ index, message: error instanceof Error ? error.message : 'ข้อมูลตอนไม่ถูกต้อง' })

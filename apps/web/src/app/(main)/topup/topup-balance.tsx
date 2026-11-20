@@ -2,7 +2,8 @@
 
 import { WalletCards } from 'lucide-react'
 import { useAuth } from '@/components/auth/auth-provider'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 function formatNumber(value: number | string) {
   return Number(value).toLocaleString('th-TH', {
@@ -16,6 +17,7 @@ type TopupBalanceProps = {
 }
 
 export function TopupBalance({ initialBalance }: TopupBalanceProps) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { user } = useAuth()
   const balance = user?.balance ?? initialBalance
 

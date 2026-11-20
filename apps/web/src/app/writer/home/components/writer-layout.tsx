@@ -16,7 +16,8 @@ import {
 import { GiTwoCoins } from 'react-icons/gi'
 import { useAuth } from '@/components/auth/auth-provider'
 import { userRole, type AuthUser } from '@/interface/user.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const writerNavigation = [
   { href: '/writer', label: 'แดชบอร์ด', icon: BarChart3, enabled: true },
@@ -48,6 +49,7 @@ function DisabledNavigationItem({
 }
 
 export function WriterLayout({ children, user }: { children: ReactNode; user: AuthUser }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const { accessToken } = useAuth()

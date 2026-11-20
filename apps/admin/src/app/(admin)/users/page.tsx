@@ -20,7 +20,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 import { formatCoin } from '@/utils/format-coin'
 
 type UserStatus = 'active' | 'banned'
@@ -74,6 +75,7 @@ function getForm(user: AdminUser): UserForm {
 }
 
 export default function UsersPage() {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken } = useAdminAuth()
   const [search, setSearch] = useState('')
   const [submittedSearch, setSubmittedSearch] = useState('')
@@ -211,7 +213,7 @@ export default function UsersPage() {
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue>{() => (status === 'all' ? 'ทุกสถานะ' : statusLabels[status])}</SelectValue>
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent align="start" alignItemWithTrigger={false}>
                 <SelectItem value="all">ทุกสถานะ</SelectItem>
                 <SelectItem value="active">ใช้งาน</SelectItem>
                 <SelectItem value="banned">ถูกแบน</SelectItem>
@@ -399,7 +401,7 @@ export default function UsersPage() {
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="balance">ยอดเหรียญ</Label>
+                <Label htmlFor="balance">ยอด{SITE_CONFIG.coinName}</Label>
                 <Input
                   id="balance"
                   type="number"
@@ -421,7 +423,7 @@ export default function UsersPage() {
                   <SelectTrigger>
                     <SelectValue>{statusLabels[form.status]}</SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent align="start" alignItemWithTrigger={false}>
                     <SelectItem value="active">ใช้งาน</SelectItem>
                     <SelectItem value="banned">แบน</SelectItem>
                   </SelectContent>

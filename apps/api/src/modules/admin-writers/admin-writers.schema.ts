@@ -3,7 +3,8 @@ import { ADMIN_WRITER_STATUSES, WRITER_STATUSES } from '../../models/user.model'
 
 export const adminWritersQuerySchema = t.Object({
   search: t.Optional(t.String({ maxLength: 255 })),
-  status: t.Optional(t.UnionEnum(WRITER_STATUSES)),
+  // An omitted filter means all statuses; UnionEnum defaults to the first value.
+  status: t.Optional(t.Union(WRITER_STATUSES.map((value) => t.Literal(value)))),
   page: t.Optional(t.Numeric({ minimum: 1, maximum: 2_147_483_647, multipleOf: 1 })),
   limit: t.Optional(t.Numeric({ minimum: 1, maximum: 100, multipleOf: 1 })),
 })

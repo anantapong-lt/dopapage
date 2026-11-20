@@ -571,6 +571,17 @@ const SpanParagraph = Node.create({
   content: 'inline*',
   parseHTML() {
     return [
+      // Older imports used a lone <br> as an empty-line placeholder. Keep the
+      // paragraph empty so ProseMirror's cursor break does not add a second row.
+      ...['p', 'span[data-type="paragraph"]'].map((tag) => ({
+        tag,
+        getAttrs: (element: HTMLElement) => (
+          element.childNodes.length === 1 && element.firstChild?.nodeName === 'BR'
+            ? null
+            : false
+        ),
+        getContent: () => Fragment.empty,
+      })),
       { tag: 'p' },
       { tag: 'span[data-type="paragraph"]' },
     ]

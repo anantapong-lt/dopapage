@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useSiteBranding } from '@readji/shared/src/site-branding'
+import { useSiteBranding, useSiteConfig } from '@readji/shared/src/site-branding'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
 import { ImagePlus, LoaderCircle, Plus, Save, Trash2, UploadCloud, X } from 'lucide-react'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Button } from '@/components/ui/button'
@@ -161,6 +162,7 @@ function BrandingImageDropzone({ kind, file, savedUrl, saving, onChange }: {
 }
 
 export default function SiteSettingsPage() {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken } = useAdminAuth()
   const { updateBranding } = useSiteBranding()
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -234,7 +236,7 @@ export default function SiteSettingsPage() {
       if (!response.ok) throw new Error('ไม่สามารถบันทึกการตั้งค่าเว็บไซต์ได้')
       const saved = await response.json() as Config
       setConfig(saved)
-      updateBranding({ logo_url: saved.logo_url, favicon_url: saved.favicon_url })
+      updateBranding({ logo_url: saved.logo_url, favicon_url: saved.favicon_url, coin_name: saved.site.coin_name })
       setLogoFile(null)
       setFaviconFile(null)
       toast.success('บันทึกการตั้งค่าเรียบร้อยแล้ว')
@@ -327,7 +329,7 @@ export default function SiteSettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>แพ็กเกจเติมเงินและโบนัส</CardTitle>
-          <CardDescription>จำนวนเงินที่ผู้ใช้เลือกเติม พร้อมโบนัสเหรียญเพิ่มเติม</CardDescription>
+          <CardDescription>จำนวนเงินที่ผู้ใช้เลือกเติม พร้อมโบนัส{SITE_CONFIG.coinName}เพิ่มเติม</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {config.topup.packages.map((item, index) => (

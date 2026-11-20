@@ -13,7 +13,8 @@ import {
 import { createTopup } from '@/controllers/topup.controller'
 import type { CreateTopupResponse, TopupPackage, TopupTransaction } from '@/interface/topup.interface'
 import { ApiError } from '@/lib/api-client'
-import { getApiUrl, SITE_CONFIG } from '@/site.config'
+import { getApiUrl, SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 function formatNumber(value: number) {
   return value.toLocaleString('th-TH', {
@@ -60,6 +61,7 @@ interface TopupSocketMessage {
 }
 
 export function TopupForm({ packages }: { packages: TopupPackage[] }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken, refresh, status } = useAuth()
   const firstPackageAmount = packages[0]?.amount ?? '50'
   const [amount, setAmount] = useState(Number(firstPackageAmount))

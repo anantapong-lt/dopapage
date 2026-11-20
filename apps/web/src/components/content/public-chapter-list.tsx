@@ -23,7 +23,8 @@ import type {
   PublicChapterSort,
   PublicChaptersResponse,
 } from '@/interface/content.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
 
 const coinPriceFormatter = new Intl.NumberFormat('th-TH', {
@@ -67,6 +68,7 @@ export function PublicChapterList({
   initialData: PublicChaptersResponse
   renderedAt: number
 }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const router = useRouter()
   const { accessToken, status } = useAuth()
   const [chapters, setChapters] = useState(initialData.chapters)

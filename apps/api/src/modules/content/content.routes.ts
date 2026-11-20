@@ -12,6 +12,7 @@ import {
   getPublicContent,
   getPublicContentChapters,
   getPublicContentSitemap,
+  normalizeContentSlug,
   ratePublicContent,
   removeChapterCommentReaction,
   setChapterCommentReaction,
@@ -32,6 +33,7 @@ import {
 
 export const contentRoutes = new Elysia({ prefix: '/contents' })
   .use(authMiddleware)
+  .onTransform(normalizeContentSlug)
   .get('', () => getPublicContentSitemap())
   .post(
     '/:slug/favorite',

@@ -18,7 +18,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { TopupStatus } from '@/constants/topup.constant'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 import { formatCoin } from '@/utils/format-coin'
 
 const PAGE_LIMIT = 20
@@ -78,6 +79,7 @@ interface TopupResponse {
 }
 
 export default function TopupsPage() {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken } = useAdminAuth()
   const [search, setSearch] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
@@ -234,7 +236,7 @@ export default function TopupsPage() {
 
       <Card>
         <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1.4fr)_minmax(10rem,0.8fr)_minmax(14rem,1fr)_auto_auto] md:items-end">
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label htmlFor="topup-user-search">ค้นหาผู้ใช้</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -247,7 +249,7 @@ export default function TopupsPage() {
               />
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label>สถานะ</Label>
             <Select<string> value={selectedStatus} onValueChange={(value) => {
               if (value) setSelectedStatus(value as 'all' | TopupStatus)
@@ -263,7 +265,7 @@ export default function TopupsPage() {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
+          <div className="flex flex-col gap-2">
             <Label>ช่วงวันที่</Label>
             <Popover>
               <PopoverTrigger

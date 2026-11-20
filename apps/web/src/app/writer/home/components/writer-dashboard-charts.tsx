@@ -6,7 +6,8 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { WriterDashboardData, WriterDashboardPeriod } from '@/interface/writer-stats.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const periods: { value: WriterDashboardPeriod; label: string }[] = [
   { value: 'today', label: 'วันนี้' },
@@ -57,6 +58,7 @@ interface Props {
 }
 
 function ChartTooltip({ value, unit, label }: { value: number; unit: string; label: string }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   return <>{`${label}: ${unit === SITE_CONFIG.coinName ? salesFormat.format(value) : countFormat.format(value)} ${unit}`}</>
 }
 
@@ -69,6 +71,7 @@ function TopStoryList({
   stories: WriterDashboardData['top_stories']['sales']
   metric: 'sales' | 'views'
 }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   return (
     <article className="readji-surface min-w-0 rounded-2xl bg-card p-4 sm:p-5">
       <h3 className="font-bold">{title}</h3>
@@ -90,6 +93,7 @@ function TopStoryList({
 }
 
 export function WriterDashboardCharts({ data, period, onPeriodChange, hasError }: Props) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const chartData = data?.activity.map((point) => ({
     label: bucketLabel(point.bucket, period),
     gross_sales: Number(point.gross_sales),

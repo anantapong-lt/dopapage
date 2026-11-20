@@ -20,7 +20,8 @@ import {
 import { purchaseChapters } from '@/controllers/chapter-purchase.controller'
 import type { PublicChapter } from '@/interface/content.interface'
 import { ApiError } from '@/lib/api-client'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
 
 function formatCoins(value: number) {
@@ -45,6 +46,7 @@ export function ChapterPurchaseDialog({
   onOpenChange: (open: boolean) => void
   onPurchased: (chapterIds: string[]) => void
 }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const router = useRouter()
   const { accessToken, refresh, status, user } = useAuth()
   const [isPurchasing, setIsPurchasing] = useState(false)

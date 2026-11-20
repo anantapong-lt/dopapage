@@ -18,7 +18,8 @@ import { importWriterChapters, importWriterMangaChapters } from '@/controllers/w
 import type { ImportedChapter } from '@/interface/writer-chapter-import.interface'
 import type { ChapterStatus } from '@/interface/writer-chapter.interface'
 import { chapterImportErrors, readChapterZip, readMangaChapterZip } from '@/utils/chapter-import.util'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const statuses: { value: ChapterStatus; label: string }[] = [
   { value: 'published', label: 'เผยแพร่' },
@@ -41,6 +42,7 @@ function StatusSelect({ value, onChange, label }: { value: string; onChange: (va
 }
 
 export function ChapterImport({ contentId, isManga = false, onCancel, onBusyChange }: { contentId: string; isManga?: boolean; onCancel: () => void; onBusyChange: (busy: boolean) => void }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const router = useRouter()
   const { accessToken } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)

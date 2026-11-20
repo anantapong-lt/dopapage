@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getWriterOverview } from '@/controllers/writer.controller'
 import type { OverviewPeriod, WriterOverview as OverviewData } from '@/interface/writer-overview.interface'
-import { SITE_CONFIG } from '@/site.config'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const periods: { value: OverviewPeriod; label: string }[] = [
   { value: 'today', label: 'วันนี้' },
@@ -94,6 +95,7 @@ function bucketLabel(bucket: string, period: OverviewPeriod) {
 }
 
 export function WriterOverview({ contentId }: { contentId: string }) {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken, user } = useAuth()
   const [period, setPeriod] = useState<OverviewPeriod>('today')
   const userId = user?.id
