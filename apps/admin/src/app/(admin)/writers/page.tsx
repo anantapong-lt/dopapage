@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Ban, ChevronLeft, ChevronRight, Search, ShieldCheck, UsersRound } from 'lucide-react'
+import { Ban, ChevronLeft, ChevronRight, Pencil, Search, ShieldCheck, UsersRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAdminAuth } from '@/components/admin-auth-provider'
 import { Badge } from '@/components/ui/badge'
@@ -9,11 +9,15 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCoin } from '@/utils/format-coin'
+import { formatPhoneNumber } from '@/utils/phone-number'
+import { SITE_CONFIG as DEFAULT_SITE_CONFIG } from '@/site.config'
+import { useSiteConfig } from '@readji/shared/src/site-branding'
 
 const USER_STATUS = {
   ACTIVE: 'active',
@@ -49,6 +53,12 @@ interface WritersResponse {
   pagination: { page: number; limit: number; total: number; totalPages: number }
 }
 
+interface WriterForm {
+  display_name: string
+  phone_number: string
+  balance: string
+}
+
 const apiUrl = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '')
 const statusLabel: Record<UserStatus, string> = {
   [USER_STATUS.ACTIVE]: 'ใช้งาน',
@@ -65,6 +75,7 @@ function formatNumber(value: string) {
 }
 
 export default function WritersPage() {
+  const SITE_CONFIG = useSiteConfig(DEFAULT_SITE_CONFIG)
   const { accessToken } = useAdminAuth()
   const [data, setData] = useState<WritersResponse | null>(null)
   const [search, setSearch] = useState('')
@@ -77,6 +88,11 @@ export default function WritersPage() {
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   const [banReason, setBanReason] = useState('')
   const [banReasonError, setBanReasonError] = useState<string | null>(null)
+
+  const [editingWriter, setEditingWriter] = useState<Writer | null>(null)
+  const [form, setForm] = useState<WriterForm | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   const loadWriters = useCallback(async () => {
     if (!accessToken) return
@@ -101,6 +117,61 @@ export default function WritersPage() {
   }, [accessToken, page, status, submittedSearch])
 
   useEffect(() => { void loadWriters() }, [loadWriters])
+
+  function openEditDialog(writer: Writer) {
+    setEditingWriter(writer)
+    setForm({
+      display_name: writer.display_name,
+      phone_number: formatPhoneNumber(writer.phone_number),
+      balance: Number(writer.balance).toFixed(2),
+    })
+    setFormError(null)
+  }
+
+  function closeEditDialog() {
+    if (isSaving) return
+    setEditingWriter(null)
+    setForm(null)
+    setFormError(null)
+  }
+
+  function updateForm<Key extends keyof WriterForm>(key: Key, value: WriterForm[Key]) {
+    setForm((current) => (current ? { ...current, [key]: value } : current))
+  }
+
+  async function saveWriter(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!editingWriter || !form || !accessToken || isSaving) return
+
+    setIsSaving(true)
+    setFormError(null)
+    try {
+      const response = await fetch(`${apiUrl}/admin/writers/${editingWriter.id}`, {
+        method: 'PUT',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          display_name: form.display_name.trim(),
+          phone_number: form.phone_number.trim() || null,
+          balance: form.balance,
+        }),
+      })
+      const body = await response.json().catch(() => null) as { message?: string } | null
+      if (!response.ok) throw new Error(body?.message ?? 'ไม่สามารถบันทึกข้อมูลนักเขียนได้')
+      toast.success('บันทึกข้อมูลนักเขียนเรียบร้อยแล้ว')
+      setEditingWriter(null)
+      setForm(null)
+      await loadWriters()
+    } catch (saveError) {
+      setFormError(saveError instanceof Error ? saveError.message : 'ไม่สามารถบันทึกข้อมูลนักเขียนได้')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   async function submitStatusChange() {
     if (!statusChange || !accessToken || isChangingStatus) return
@@ -205,6 +276,11 @@ export default function WritersPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="align-middle text-right">
+                        <div className="flex justify-end gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={() => openEditDialog(writer)}>
+                          <Pencil />
+                          แก้ไข
+                        </Button>
                         <Button
                           type="button"
                           size="sm"
@@ -218,6 +294,7 @@ export default function WritersPage() {
                           {nextStatus === USER_STATUS.SUSPENDED ? <Ban /> : <ShieldCheck />}
                           {nextStatus === USER_STATUS.SUSPENDED ? 'ระงับ' : 'ใช้งาน'}
                         </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -231,6 +308,70 @@ export default function WritersPage() {
       </CardContent>
       <div className="flex items-center justify-between border-t px-4 py-3"><span className="text-sm text-muted-foreground">หน้า {data?.pagination.page ?? 1} จาก {data?.pagination.totalPages ?? 1}</span><div className="flex gap-2"><Button size="sm" variant="outline" disabled={isLoading || page <= 1} onClick={() => setPage((current) => current - 1)}><ChevronLeft />ก่อนหน้า</Button><Button size="sm" variant="outline" disabled={isLoading || !data || page >= data.pagination.totalPages} onClick={() => setPage((current) => current + 1)}>ถัดไป<ChevronRight /></Button></div></div>
     </Card>
+    <Dialog open={Boolean(editingWriter)} onOpenChange={(open) => { if (!open) closeEditDialog() }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>แก้ไขข้อมูลของ {editingWriter?.display_name}</DialogTitle>
+        </DialogHeader>
+        {form && editingWriter && (
+          <form onSubmit={saveWriter} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="writer_display_name">ชื่อที่แสดง</Label>
+              <Input
+                id="writer_display_name"
+                value={form.display_name}
+                onChange={(event) => updateForm('display_name', event.target.value)}
+                required
+                maxLength={100}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="writer_username">Username</Label>
+              <Input id="writer_username" value={editingWriter.username} disabled readOnly />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="writer_email">อีเมล</Label>
+              <Input id="writer_email" type="email" value={editingWriter.email} disabled readOnly />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="writer_phone_number">เบอร์โทรศัพท์</Label>
+              <Input
+                id="writer_phone_number"
+                type="tel"
+                value={form.phone_number}
+                onChange={(event) => updateForm('phone_number', event.target.value)}
+                placeholder="0812345678"
+                pattern="^(?:0[0-9]{9}|\\+[1-9][0-9]{7,14})$"
+                title="กรุณากรอกเบอร์โทรศัพท์ 10 หลัก เช่น 0812345678"
+                inputMode="tel"
+                maxLength={16}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="writer_balance">ยอด{SITE_CONFIG.coinName}</Label>
+              <Input
+                id="writer_balance"
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.balance}
+                onChange={(event) => updateForm('balance', event.target.value)}
+                required
+              />
+            </div>
+            {formError && <p className="text-sm text-destructive">{formError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeEditDialog} disabled={isSaving}>
+                ยกเลิก
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
     <Dialog open={Boolean(statusChange)} onOpenChange={(open) => {
       if (!open && !isChangingStatus) {
         setStatusChange(null)

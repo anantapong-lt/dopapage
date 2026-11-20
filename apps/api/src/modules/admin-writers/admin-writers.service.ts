@@ -117,3 +117,21 @@ export async function updateAdminWriterStatus(id: string, status: WriterStatus, 
   `
   return writer ?? null
 }
+
+export async function updateAdminWriter(
+  id: string,
+  input: { displayName: string; phoneNumber: string | null; balance: string },
+): Promise<{ id: string; display_name: string; phone_number: string | null; balance: string } | null> {
+  const [writer] = await db<Array<{ id: string; display_name: string; phone_number: string | null; balance: string }>>`
+    UPDATE users
+    SET display_name = ${input.displayName},
+        phone_number = ${input.phoneNumber},
+        balance = ROUND(${input.balance}::NUMERIC, 2),
+        updated_at = NOW()
+    WHERE id = ${id}
+      AND role = ${USER_ROLE.WRITER}
+      AND deleted_at IS NULL
+    RETURNING id, display_name, phone_number, balance::TEXT
+  `
+  return writer ?? null
+}

@@ -17,3 +17,9 @@ export const adminWriterStatusBodySchema = t.Object({
 export const adminWriterParamsSchema = t.Object({
   id: t.String({ format: 'uuid' }),
 })
+
+export const updateAdminWriterBodySchema = t.Object({
+  display_name: t.String({ minLength: 1, maxLength: 100 }),
+  phone_number: t.Optional(t.Union([t.String({ pattern: '^(?:0[0-9]{9}|\\+[1-9][0-9]{7,14})$', maxLength: 16 }), t.Null()])),
+  balance: t.String({ pattern: '^(?:0|[1-9]\\d*)(?:\\.\\d{1,2})?$', maxLength: 20 }),
+}, { additionalProperties: false })
