@@ -1,7 +1,7 @@
 'use client'
 
 import { requestPhoneVerification, verifyPhoneVerification } from '@/controllers/auth.controller'
-import type { AuthUser } from '@/interface/user.interface'
+import { userRole, type AuthUser } from '@/interface/user.interface'
 import { PhoneVerificationDialog } from './phone-verification-dialog'
 
 interface PhoneVerificationGateProps {
@@ -11,7 +11,9 @@ interface PhoneVerificationGateProps {
 }
 
 export function PhoneVerificationGate({ accessToken, user, onVerified }: PhoneVerificationGateProps) {
-  const verificationRequired = Boolean(accessToken && user && !user.phone_verified)
+  const verificationRequired = Boolean(
+    accessToken && user && !user.phone_verified && user.role !== userRole.SUPER_ADMIN,
+  )
   const initialPhoneNumber = user?.phone_number?.startsWith('+66')
     ? `0${user.phone_number.slice(3)}`
     : user?.phone_number ?? ''
