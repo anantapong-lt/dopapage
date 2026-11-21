@@ -95,6 +95,11 @@ export function PublicChapterList({
     && selectedChapters.length === purchasableChapters.length
 
   useEffect(() => {
+    // Default to the 3-column layout on desktop; phones and tablets keep the single-column list.
+    if (window.matchMedia('(min-width: 1280px)').matches) setDisplayMode('grid')
+  }, [])
+
+  useEffect(() => {
     if (status === 'unauthenticated') {
       setChapters((current) => current.map((chapter) => ({
         ...chapter,
