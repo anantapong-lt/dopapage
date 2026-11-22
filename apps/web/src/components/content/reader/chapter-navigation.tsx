@@ -75,7 +75,7 @@ function NavigationButton({
     <button
       type="button"
       onClick={() => onNavigate(chapter)}
-      className="flex h-14 cursor-pointer items-center justify-center gap-2 bg-primary/10 text-sm font-extrabold text-primary transition-colors hover:bg-primary/20 first:bg-primary first:text-primary-foreground first:hover:bg-primary/85"
+      className="flex h-14 cursor-pointer items-center justify-center gap-2 bg-white text-sm font-extrabold text-primary transition-colors hover:bg-primary/10 first:bg-primary first:text-primary-foreground first:hover:bg-primary/85"
     >
       {!iconAfter ? icon : null}{label}{iconAfter ? icon : null}
     </button>

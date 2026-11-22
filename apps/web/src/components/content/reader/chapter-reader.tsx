@@ -39,6 +39,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   const [pendingChapter, setPendingChapter] = useState<PublicReaderChapter | null>(null)
   const [readerNavbarVisible, setReaderNavbarVisible] = useState(true)
   const [navigationVisible, setNavigationVisible] = useState(false)
+  const [navigationAtBottom, setNavigationAtBottom] = useState(false)
   const [showAudioPlayer, setShowAudioPlayer] = useState(false)
   const [audioStartTime, setAudioStartTime] = useState(0)
   const [audioPlaybackRate, setAudioPlaybackRate] = useState(1)
@@ -82,6 +83,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
     let previousScrollY = window.scrollY
     const handleScroll = () => {
       const currentScrollY = window.scrollY
+      setNavigationAtBottom(window.innerHeight + currentScrollY >= document.documentElement.scrollHeight - 8)
       if (currentScrollY <= 0) {
         setReaderNavbarVisible(true)
         setNavigationVisible(false)
@@ -89,8 +91,9 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
         setReaderNavbarVisible(false)
         setNavigationVisible(false)
       } else if (currentScrollY < previousScrollY - 8) {
+        // Scrolling up never reveals the chapter navigation; only a tap or reaching the bottom does.
         setReaderNavbarVisible(false)
-        setNavigationVisible(true)
+        setNavigationVisible(false)
       }
       previousScrollY = currentScrollY
     }
@@ -99,6 +102,13 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
     window.addEventListener('scroll', handleScroll, { passive: true })
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  function toggleNavigationOnTap(event: React.MouseEvent<HTMLDivElement>) {
+    // Taps on links, buttons and form controls keep their own behavior; so does selecting text.
+    if ((event.target as HTMLElement).closest('a, button, input, textarea, select, audio, [role="button"]')) return
+    if (window.getSelection()?.toString()) return
+    setNavigationVisible((visible) => !visible)
+  }
 
   function updateSettings(nextSettings: ReadingSettings) {
     hasChangedReadingSettingsRef.current = true
@@ -209,7 +219,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           onAutoReadEnded={handleAutoReadEnded}
         />
 
-        <div className="overflow-hidden rounded-b-2xl sm:rounded-b-[1.75rem]">
+        <div className="overflow-hidden rounded-b-2xl sm:rounded-b-[1.75rem]" onClick={toggleNavigationOnTap}>
           {data.story.type === 'manga' ? (
             <MangaChapterContent
               storyTitle={data.story.title}
@@ -246,7 +256,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
         currentChapterNumber={data.chapter.chapter_number}
         onNavigate={navigateToChapter}
         floating
-        visible={navigationVisible}
+        visible={navigationVisible || navigationAtBottom}
       />
 
       {commentsEnabled ? (
