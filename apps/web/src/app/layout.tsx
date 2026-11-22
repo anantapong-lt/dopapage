@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { SiteBrandingProvider } from '@readji/shared/src/site-branding'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Toaster } from '@/components/ui/sonner'
-import { SITE_CONFIG } from '@/site.config'
+import { getApiUrl, SITE_CONFIG } from '@/site.config'
 import { notoSansThai, notoSerifThai, prompt, sarabun } from '@/lib/fonts'
 import './globals.css'
 
@@ -11,9 +11,8 @@ import './globals.css'
 // metadataBase จำเป็นสำหรับ URL แบบ relative ในหน้าลูก (og:image, canonical ฯลฯ) — ไม่งั้น build error
 // รูปแชร์ลิงก์ใช้โลโก้ที่แอดมินตั้งไว้ใน /site-config/branding (ไม่มีหรือโหลดไม่ได้ → icon.png เดิม)
 async function loadBrandingLogoUrl() {
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '')
   try {
-    const response = await fetch(`${apiUrl}/site-config/branding`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(3000) })
+    const response = await fetch(getApiUrl('/site-config/branding'), { next: { revalidate: 60 }, signal: AbortSignal.timeout(3000) })
     if (!response.ok) return null
     const data = (await response.json()) as { logo_url?: unknown }
     return typeof data.logo_url === 'string' && data.logo_url ? data.logo_url : null
