@@ -94,7 +94,7 @@ export default async function ContentPage({ params }: ContentPageProps) {
                     alt={`ปกเรื่อง ${story.title}`}
                     fill
                     sizes="208px"
-                    quality={60}
+                    quality={85}
                     preload
                     fetchPriority="high"
                     placeholder={story.cover_blur_data_url ? 'blur' : 'empty'}

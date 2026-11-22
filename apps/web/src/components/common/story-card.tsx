@@ -46,7 +46,7 @@ export function StoryCard({
             placeholder={blurDataUrl ? 'blur' : 'empty'}
             blurDataURL={blurDataUrl ?? undefined}
             sizes="(min-width: 1536px) 147px, (min-width: 1280px) 125px, (min-width: 1024px) calc((100vw - 144px) / 6), (min-width: 768px) calc((100vw - 112px) / 4), calc((100vw - 48px) / 2.5)"
-            quality={60}
+            quality={85}
             priority={eager}
             loading={eager ? 'eager' : 'lazy'}
             fetchPriority={eager ? 'high' : undefined}

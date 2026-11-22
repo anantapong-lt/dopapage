@@ -138,7 +138,7 @@ const nextConfig: NextConfig = {
   },
   images: {
     formats: ['image/avif', 'image/webp'],
-    qualities: [40, 60, 75],
+    qualities: [40, 60, 75, 85],
     remotePatterns: [
       // Unsplash — ใช้ตอน mock data
       {
