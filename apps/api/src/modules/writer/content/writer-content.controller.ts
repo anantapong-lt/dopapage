@@ -17,7 +17,7 @@ import {
   updateWriterContentRecord,
 } from './writer-content.service'
 
-const WRITER_COVER_OPTIMIZATION = { quality: 90, width: 1200, height: 1600 } as const
+const WRITER_COVER_OPTIMIZATION = { quality: 100, width: 1200, height: 1600 } as const
 
 export class CreateWriterContentError extends Error {
   constructor(

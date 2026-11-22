@@ -117,7 +117,7 @@ export function PopularRankingSection({
                       alt={`ปกเรื่อง ${story.title}`}
                       fill
                       sizes="36px"
-                      quality={85}
+                      quality={100}
                       loading="lazy"
                       className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
                     />

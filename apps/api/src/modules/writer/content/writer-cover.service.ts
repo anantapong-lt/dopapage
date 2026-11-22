@@ -6,7 +6,7 @@ import { createPublicAssetUrl, deleteAsset, isLocalAssetKey, uploadAsset } from 
 const SUPPORTED_WRITER_COVER_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const OPTIMIZED_WRITER_COVER_TYPE = 'image/webp'
 const OPTIMIZED_WRITER_COVER_EXTENSION = 'webp'
-const DEFAULT_WRITER_COVER_QUALITY = 90
+const DEFAULT_WRITER_COVER_QUALITY = 100
 const DEFAULT_WRITER_COVER_WIDTH = 1200
 const DEFAULT_WRITER_COVER_HEIGHT = 1600
 const WRITER_COVER_BLUR_WIDTH = 24

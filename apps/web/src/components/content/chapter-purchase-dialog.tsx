@@ -142,7 +142,7 @@ export function ChapterPurchaseDialog({
                     alt={`ปกเรื่อง ${storyTitle}`}
                     fill
                     sizes="64px"
-                    quality={85}
+                    quality={100}
                     className="object-cover"
                   />
                 </div>
