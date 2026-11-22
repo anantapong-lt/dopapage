@@ -9,6 +9,7 @@ import { getPublicChapter, getPublicContent } from '@/controllers/content.contro
 import { ApiError } from '@/lib/api-client'
 import { getServerFeatureConfig } from '@/lib/server-auth'
 import { formatChapterNumber } from '@/utils/chapter-number.util'
+import { createContentMetadata } from '@/utils/content-metadata.util'
 
 interface ChapterPageProps {
   params: Promise<{ slug: string; chapterNumber: string }>
@@ -27,13 +28,17 @@ export async function generateMetadata({ params }: ChapterPageProps): Promise<Me
       ? `ตอนที่ ${formatChapterNumber(chapter.chapter_number)}: ${chapter.title} - ${story.title}`
       : story.title
 
+    const canonical = `/content/${encodeURIComponent(slug)}/${encodeURIComponent(chapterNumber)}`
+    // Reuse the story's share metadata so link previews show the cover and title instead of the site logo.
+    const storyMetadata = createContentMetadata(story)
+
     return {
+      ...storyMetadata,
       title,
-      description: story.synopsis ?? undefined,
       robots: { index: false, follow: true },
-      alternates: {
-        canonical: `/content/${encodeURIComponent(slug)}/${encodeURIComponent(chapterNumber)}`,
-      },
+      alternates: { canonical },
+      openGraph: { ...storyMetadata.openGraph, title, url: canonical },
+      twitter: { ...storyMetadata.twitter, title },
     }
   } catch {
     return { robots: { index: false, follow: false } }
