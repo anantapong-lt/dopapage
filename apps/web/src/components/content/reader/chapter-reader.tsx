@@ -104,9 +104,11 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
   }, [])
 
   function toggleNavigationOnTap(event: React.MouseEvent<HTMLDivElement>) {
-    // Taps on links, buttons and form controls keep their own behavior; so does selecting text.
+    // Only a double tap/click toggles; taps on links, buttons and form controls keep their own behavior.
+    if (event.detail < 2) return
     if ((event.target as HTMLElement).closest('a, button, input, textarea, select, audio, [role="button"]')) return
-    if (window.getSelection()?.toString()) return
+    // A double tap also selects the word under the finger; drop that highlight.
+    window.getSelection()?.removeAllRanges()
     setNavigationVisible((visible) => !visible)
   }
 
@@ -219,7 +221,7 @@ export function ChapterReader({ data, commentsEnabled }: { data: PublicChapterRe
           onAutoReadEnded={handleAutoReadEnded}
         />
 
-        <div className="overflow-hidden rounded-b-2xl sm:rounded-b-[1.75rem]" onClick={toggleNavigationOnTap}>
+        <div className="touch-manipulation overflow-hidden rounded-b-2xl sm:rounded-b-[1.75rem]" onClick={toggleNavigationOnTap}>
           {data.story.type === 'manga' ? (
             <MangaChapterContent
               storyTitle={data.story.title}
