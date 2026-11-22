@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { PublicChapterResponse, PublicReaderChapter } from '@/interface/content.interface'
-import { READING_THEMES, TTS_VOICE_LABELS, type ReadingSettings, type TtsVoiceSlot } from '@/lib/reading-settings'
+import { READING_FONTS, READING_THEMES, TTS_VOICE_LABELS, type ReadingSettings, type TtsVoiceSlot } from '@/lib/reading-settings'
 import { ChapterTocDialog } from './chapter-toc-dialog'
 import { ReadingSettingsMenu } from './reading-settings-menu'
 
@@ -141,8 +141,8 @@ export function ChapterReaderHeader({
         <div className="min-w-0">
           <Link
             href={`/content/${encodeURIComponent(slug)}`}
-            className="block truncate text-xs font-bold transition-opacity hover:opacity-70"
-            style={{ color: theme.text }}
+            className="block truncate text-sm font-bold transition-opacity hover:opacity-70"
+            style={{ color: theme.text, fontFamily: READING_FONTS[settings.fontFamily].family }}
           >
             {storyTitle}
           </Link>
