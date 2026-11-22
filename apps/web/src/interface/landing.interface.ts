@@ -19,12 +19,13 @@ export interface LandingStory {
     username: string
     display_name: string
   }
+  created_at: string
   latest_chapter: {
     id: string
     chapter_number: string
     title: string
     published_at: string
-  }
+  } | null
 }
 
 export interface LandingResponse {

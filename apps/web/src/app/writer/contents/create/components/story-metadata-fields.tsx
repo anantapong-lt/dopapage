@@ -30,7 +30,7 @@ export function StoryMetadataFields({
   children,
   initialAlternativeTitle = '',
   initialAgeRating = '',
-  initialStatus = StoryStatus.DRAFT,
+  initialStatus = StoryStatus.ONGOING,
   initialTitle,
 }: StoryMetadataFieldsProps) {
   const { clearFieldError, errors } = useCreateStoryForm()

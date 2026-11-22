@@ -21,12 +21,13 @@ interface LandingStory {
     username: string
     display_name: string
   }
+  created_at: Date
   latest_chapter: {
     id: string
     chapter_number: string
     title: string
     published_at: Date
-  }
+  } | null
 }
 
 interface LandingStoryCount {
@@ -123,15 +124,16 @@ export async function getLandingStories(
           'username', users.username,
           'display_name', users.display_name
         ) AS author,
-        json_build_object(
+        stories.created_at,
+        CASE WHEN latest_chapter.id IS NULL THEN NULL ELSE json_build_object(
           'id', latest_chapter.id,
           'chapter_number', latest_chapter.chapter_number::TEXT,
           'title', latest_chapter.title,
           'published_at', latest_chapter.published_at
-        ) AS latest_chapter
+        ) END AS latest_chapter
       FROM stories
       INNER JOIN users ON users.id = stories.creator_user_id
-      INNER JOIN LATERAL (
+      LEFT JOIN LATERAL (
         SELECT chapters.id, chapters.chapter_number, chapters.title,
           chapters.published_at
         FROM chapters
@@ -218,7 +220,7 @@ export async function getLandingStories(
         )
       ORDER BY
         CASE WHEN ${section} = 'random' THEN md5(stories.id::TEXT) END ASC,
-        CASE WHEN ${section} = 'latest' THEN latest_chapter.published_at END DESC,
+        CASE WHEN ${section} = 'latest' THEN COALESCE(latest_chapter.published_at, stories.created_at) END DESC,
         CASE WHEN ${section} = 'weekly' THEN COALESCE(weekly_stats.weekly_views, 0) END DESC,
         CASE WHEN ${section} IN ('popular', 'all-time') THEN stories.total_views END DESC,
         CASE WHEN ${section} = 'most-followed' THEN COALESCE(favorite_stats.favorite_count, 0) END DESC,
@@ -292,13 +294,6 @@ export async function getLandingStories(
               )
               AND story_daily_views.view_count > 0
           )
-        )
-        AND EXISTS (
-          SELECT 1
-          FROM chapters
-          WHERE chapters.story_id = stories.id
-            AND chapters.status = ${CHAPTER_STATUS.PUBLISHED}
-            AND chapters.published_at <= NOW()
         )
     `,
   ])

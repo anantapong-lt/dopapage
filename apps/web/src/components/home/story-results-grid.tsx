@@ -39,14 +39,16 @@ function toStoryGridItem(
     id: story.id,
     slug: story.slug,
     title: story.title,
-    episode: `ตอนที่ ${formatChapterNumber(story.latest_chapter.chapter_number)}`,
+    episode: story.latest_chapter
+      ? `ตอนที่ ${formatChapterNumber(story.latest_chapter.chapter_number)}`
+      : 'ยังไม่มีตอน',
     author: story.author.display_name,
     image: story.cover_url ?? '/placeholder.svg',
     blurDataUrl: story.cover_blur_data_url,
     type: story.type,
     ratingAverage: Number(story.rating_average),
     meta: section === 'latest'
-      ? `${formatUpdatedAt(story.latest_chapter.published_at, renderedAt)}`
+      ? `${formatUpdatedAt(story.latest_chapter?.published_at ?? story.created_at, renderedAt)}`
       : section === 'most-followed'
         ? `${Number(story.favorite_count).toLocaleString('th-TH')} ติดตาม`
       : `${Number(story.total_views).toLocaleString('th-TH')} อ่าน`,
