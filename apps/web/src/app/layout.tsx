@@ -9,32 +9,42 @@ import './globals.css'
 // ─── Metadata ──────────────────────────────────────────────────────────────
 // Next.js ใส่ <title> และ <meta> ให้อัตโนมัติ
 // metadataBase จำเป็นสำหรับ URL แบบ relative ในหน้าลูก (og:image, canonical ฯลฯ) — ไม่งั้น build error
-export const metadata: Metadata = {
-  metadataBase: new URL(SITE_CONFIG.siteUrl),
-  title: {
-    default: SITE_CONFIG.name,
-    template: `%s | ${SITE_CONFIG.name}`, // หน้าอื่นจะได้ "ชื่อหน้า | Readji"
-  },
-  description: SITE_CONFIG.description,
-  openGraph: {
-    title: SITE_CONFIG.name,
+// รูปแชร์ลิงก์ใช้โลโก้ที่แอดมินตั้งไว้ใน /site-config/branding (ไม่มีหรือโหลดไม่ได้ → icon.png เดิม)
+async function loadBrandingLogoUrl() {
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '')
+  try {
+    const response = await fetch(`${apiUrl}/site-config/branding`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(3000) })
+    if (!response.ok) return null
+    const data = (await response.json()) as { logo_url?: unknown }
+    return typeof data.logo_url === 'string' && data.logo_url ? data.logo_url : null
+  } catch {
+    return null
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const shareImage = (await loadBrandingLogoUrl()) ?? '/icon.png'
+
+  return {
+    metadataBase: new URL(SITE_CONFIG.siteUrl),
+    title: {
+      default: SITE_CONFIG.name,
+      template: `%s | ${SITE_CONFIG.name}`, // หน้าอื่นจะได้ "ชื่อหน้า | Readji"
+    },
     description: SITE_CONFIG.description,
-    type: 'website',
-    images: [
-      {
-        url: '/icon.png',
-        width: 640,
-        height: 640,
-        alt: `โลโก้ ${SITE_CONFIG.name}`,
-      },
-    ],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: SITE_CONFIG.name,
-    description: SITE_CONFIG.description,
-    images: ['/icon.png'],
-  },
+    openGraph: {
+      title: SITE_CONFIG.name,
+      description: SITE_CONFIG.description,
+      type: 'website',
+      images: [{ url: shareImage, alt: `โลโก้ ${SITE_CONFIG.name}` }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: SITE_CONFIG.name,
+      description: SITE_CONFIG.description,
+      images: [shareImage],
+    },
+  }
 }
 
 // ─── Root Layout ───────────────────────────────────────────────────────────
